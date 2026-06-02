@@ -1,0 +1,4 @@
+body { background: linear-gradient(180deg, #f7fbff, #ffffff); }
+.book-cover { height: 260px; object-fit: cover; }
+.navbar-brand { color: #1f6feb; }
+.card { border-radius: 12px; }
