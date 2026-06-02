@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="py-5">
+  <div class="card shadow-sm rounded-4 p-4">
+    <div class="d-flex justify-content-between align-items-start mb-4">
+      <div>
+        <h1 class="h4 mb-2">Objednávka #{{ order.pk }}</h1>
+        <div class="text-muted">Stav: {{ order.get_status_display }}</div>
+      </div>
+      <div class="text-end">
+        <div class="text-muted small">Vytvořeno</div>
+        <div>{{ order.created_at|date:'j. n. Y H:i' }}</div>
+      </div>
+    </div>
+    <div class="row g-4">
+      <div class="col-lg-6">
+        <div class="mb-4">
+          <h2 class="h6">Zákazník</h2>
+          <p class="mb-1">{{ order.customer_name }}</p>
+          <p class="text-muted small">{{ order.email }}</p>
+        </div>
+        <div>
+          <h2 class="h6">Dodací adresa</h2>
+          <p class="mb-0">{{ order.address|linebreaksbr }}</p>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <div class="p-3 bg-light rounded-4">
+          <div class="d-flex justify-content-between mb-2">
+            <div class="text-muted">Celkem</div>
+            <div class="fw-semibold">{{ order.total_price|floatformat:2 }} CZK</div>
+          </div>
+          <div class="text-muted small">Počet položek: {{ order.items.count }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="mt-4">
+      <h2 class="h5 mb-3">Položky objednávky</h2>
+      <div class="list-group">
+        {% for item in order.items.all %}
+        <div class="list-group-item rounded-4 mb-2">
+          <div class="d-flex justify-content-between align-items-center">
+            <div>
+              <div class="fw-semibold">{{ item.book.title }}</div>
+              <div class="text-muted small">{{ item.quantity }} × {{ item.unit_price|floatformat:2 }} {{ item.book.currency }}</div>
+            </div>
+            <div class="text-end">
+              <div class="fw-semibold">{{ item.quantity|floatformat:0 }} × {{ item.unit_price|floatformat:2 }} CZK</div>
+              <div class="text-muted small">Celkem {{ item.line_total|floatformat:2 }} CZK</div>
+            </div>
+          </div>
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <a href="{% url 'order_list' %}" class="btn btn-outline-secondary mt-4">Zpět na moje objednávky</a>
+  </div>
+</div>
+{% endblock %}

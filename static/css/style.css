@@ -1,4 +1,207 @@
-body { background: linear-gradient(180deg, #f7fbff, #ffffff); }
-.book-cover { height: 260px; object-fit: cover; }
-.navbar-brand { color: #1f6feb; }
-.card { border-radius: 12px; }
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+
+:root {
+  --bg: #f8fbff;
+  --surface: #ffffff;
+  --surface-soft: #f5f8ff;
+  --text: #1d2733;
+  --muted: #667085;
+  --primary: #b42419;
+  --primary-soft: #f7e3e2;
+  --border: rgba(136, 152, 170, 0.15);
+  --shadow-soft: 0 22px 55px rgba(46, 93, 126, 0.12);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  min-height: 100vh;
+  background: radial-gradient(circle at top left, rgba(180, 36, 25, 0.08), transparent 28%),
+              radial-gradient(circle at bottom right, rgba(27, 56, 99, 0.08), transparent 25%),
+              linear-gradient(180deg, var(--bg), #ffffff 65%);
+  color: var(--text);
+}
+
+body, button, input, select, textarea {
+  font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.navbar {
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid rgba(29, 39, 51, 0.08);
+  backdrop-filter: blur(12px);
+}
+
+.navbar-brand {
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--primary) !important;
+}
+
+.navbar-nav .nav-link {
+  color: #344054;
+  font-weight: 500;
+}
+
+.navbar-nav .nav-link:hover,
+.navbar-nav .nav-link.active {
+  color: var(--primary);
+}
+
+.hero-section {
+  min-height: 420px;
+  position: relative;
+  overflow: hidden;
+  border-radius: 28px;
+  box-shadow: var(--shadow-soft);
+}
+
+.hero-section::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(27, 56, 99, 0.32), rgba(178, 36, 25, 0.22));
+  pointer-events: none;
+}
+
+.hero-section .container,
+.hero-section .row {
+  position: relative;
+  z-index: 1;
+}
+
+.hero-section h1 {
+  font-size: clamp(2.75rem, 4vw, 4.5rem);
+  line-height: 1.02;
+}
+
+.hero-section .lead {
+  color: rgba(255, 255, 255, 0.88);
+}
+
+.hero-meta {
+  backdrop-filter: blur(14px);
+  background: rgba(255, 255, 255, 0.85);
+}
+
+.card {
+  border-radius: 24px;
+  border: 1px solid rgba(29, 39, 51, 0.08);
+}
+
+.card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 48px rgba(46, 93, 126, 0.12);
+}
+
+.card-image-wrapper {
+  overflow: hidden;
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+}
+
+.card-image-wrapper img {
+  transition: transform .35s ease;
+}
+
+.card:hover .card-image-wrapper img {
+  transform: scale(1.05);
+}
+
+.book-cover {
+  height: 320px;
+  object-fit: cover;
+}
+
+.book-card {
+  transition: transform .25s ease, box-shadow .25s ease;
+}
+
+.book-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 50px rgba(46, 93, 126, 0.14);
+}
+
+.book-price {
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.badge {
+  border-radius: 999px;
+  padding: 0.55em 0.9em;
+}
+
+.category-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.6rem;
+  height: 1.6rem;
+  font-size: 1rem;
+  border-radius: 0.65rem;
+  background: rgba(180, 36, 25, 0.08);
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #b42419, #e74a37);
+  border: none;
+  box-shadow: 0 15px 30px rgba(180, 36, 25, 0.22);
+}
+
+.btn-primary:hover,
+.btn-primary:focus {
+  background: linear-gradient(135deg, #8f1c15, #cc3c2b);
+}
+
+.btn-outline-primary {
+  color: var(--primary);
+  border-color: rgba(180, 36, 25, 0.25);
+}
+
+.btn-outline-primary:hover,
+.btn-outline-primary:focus {
+  background: rgba(180, 36, 25, 0.08);
+}
+
+.form-control,
+.form-select {
+  border-radius: 16px;
+  border-color: rgba(29, 39, 51, 0.12);
+  box-shadow: none;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: rgba(180, 36, 25, 0.4);
+  box-shadow: 0 0 0 0.15rem rgba(180, 36, 25, 0.14);
+}
+
+.list-group-item {
+  border-radius: 18px;
+  border: 1px solid rgba(29, 39, 51, 0.08);
+}
+
+footer {
+  font-size: 0.95rem;
+}
+
+.footer a {
+  text-decoration: none;
+}
+
+.footer a:hover {
+  color: var(--primary);
+}
+
+@media (max-width: 767px) {
+  .hero-section {
+    min-height: 360px;
+  }
+
+  .book-cover {
+    height: 280px;
+  }
+}

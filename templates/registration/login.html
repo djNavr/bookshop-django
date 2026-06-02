@@ -1,0 +1,30 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-5">
+      <div class="card shadow-sm rounded-4 p-4">
+        <h1 class="h3 mb-4">Přihlášení</h1>
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {{ form.non_field_errors }}
+          </div>
+          {% endif %}
+          <div class="mb-3">
+            <label class="form-label" for="id_username">Uživatelské jméno</label>
+            {{ form.username }}
+          </div>
+          <div class="mb-3">
+            <label class="form-label" for="id_password">Heslo</label>
+            {{ form.password }}
+          </div>
+          <button type="submit" class="btn btn-primary">Přihlásit se</button>
+        </form>
+        <p class="mt-4 text-muted">Ještě nemáte účet? <a href="{% url 'register' %}">Zaregistrujte se</a>.</p>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

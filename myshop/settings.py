@@ -66,6 +66,14 @@ USE_TZ = True
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
 
+ADDRESS_VERIFICATION_ENABLED = True
+ADDRESS_VERIFICATION_API_URL = 'mock'
+ADDRESS_VERIFICATION_API_KEY = ''
+
+DEFAULT_FROM_EMAIL = 'noreply@freshbooks.local'
+SERVICE_EMAIL = ''
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 GRAPHENE = {

@@ -1,20 +1,133 @@
 {% extends 'base.html' %}
 {% block content %}
-<div class="row">
-  {% for book in books %}
-  <div class="col-md-4 mb-4">
-    <div class="card h-100 shadow-sm border-0">
-      {% if book.cover_image %}
-      <img src="{{ book.cover_image }}" class="card-img-top book-cover" alt="{{ book.title }}" />
-      {% endif %}
-      <div class="card-body">
-        <h5 class="card-title">{{ book.title }}</h5>
-        <p class="card-subtitle text-muted">by {{ book.author }}</p>
-        <p class="mt-2 fw-bold">${{ book.price }}</p>
-        <a href="/books/{{ book.pk }}/" class="btn btn-primary mt-2">View</a>
+<section class="hero-section rounded-4 p-5 mb-5 text-white" style="background-image: linear-gradient(135deg, rgba(27, 56, 99, 0.92), rgba(78, 123, 177, 0.92)), url('https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1200&q=80'); background-size: cover; background-position: center;">
+  <div class="row align-items-center">
+    <div class="col-lg-7">
+      <span class="badge bg-light text-dark mb-3">Online knihkupectví</span>
+      <h1 class="display-5 fw-bold">Nakupujte nejlepší čtení pro každou knihovnu</h1>
+      <p class="lead text-white-75">Prohlédněte si moderní katalog knih s přesným skladem, jasnými cenami a ručně vybranými doporučeními.</p>
+      <a href="#catalog" class="btn btn-light btn-lg mt-3">Prohlédnout katalog</a>
+    </div>
+    <div class="col-lg-5 d-none d-lg-block">
+      <div class="hero-meta p-4 rounded-4 bg-white bg-opacity-90 text-dark shadow-sm">
+        <h5 class="fw-bold">Co zákazníci milují</h5>
+        <ul class="list-unstyled mb-0">
+          <li class="mb-2">• Autentická data o knihách a obrázky</li>
+          <li class="mb-2">• Informace o dostupnosti</li>
+          <li>• Plynulé prohlížení katalogu</li>
+        </ul>
       </div>
     </div>
   </div>
-  {% endfor %}
-</div>
+</section>
+
+<section id="catalog" class="mb-5">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
+    <div>
+      <h2 class="h3 mb-1">Doporučené knihy</h2>
+      <p class="text-muted mb-0">Prozkoumejte náš aktuální katalog a filtrujte podle dostupnosti a typu knihy.</p>
+    </div>
+    <div>
+      <p class="text-muted mb-0">Nalezeno {{ books|length }} položek</p>
+    </div>
+  </div>
+
+  <form method="get" class="row g-3 mb-4 align-items-end">
+    <div class="col-md-3">
+      <label class="form-label">Hledat</label>
+      <input type="text" name="q" value="{{ selected_filters.q }}" placeholder="Hledat podle názvu" class="form-control form-control-sm" />
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Pouze skladem</label>
+      <select name="in_stock" class="form-select form-select-sm">
+        <option value="" {% if not selected_filters.in_stock %}selected{% endif %}>Vše</option>
+        <option value="1" {% if selected_filters.in_stock == '1' %}selected{% endif %}>Ano</option>
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Typ</label>
+      <select name="book_type" class="form-select form-select-sm">
+        <option value="" {% if not selected_filters.book_type %}selected{% endif %}>Všechny typy</option>
+        {% for type in book_types %}
+        <option value="{{ type }}" {% if type == selected_filters.book_type %}selected{% endif %}>{{ type }}</option>
+        {% endfor %}
+      </select>
+      {% if selected_filters.category_group %}
+      <input type="hidden" name="category_group" value="{{ selected_filters.category_group }}" />
+      {% endif %}
+    </div>
+    <div class="col-md-3">
+      <button type="submit" class="btn btn-primary w-100 btn-sm">Aplikovat filtr</button>
+    </div>
+  </form>
+
+  <div class="row row-cols-1 row-cols-md-2 row-cols-lg-3 g-4">
+    {% for book in books %}
+    <div class="col">
+      <div class="card h-100 shadow-sm border-0 book-card">
+        {% if book.cover_image %}
+        <a href="/books/{{ book.pk }}/" class="card-image-wrapper d-block overflow-hidden rounded-top-4">
+          <img src="{{ book.cover_image }}" class="card-img-top book-cover" alt="{{ book.title }}" />
+        </a>
+        {% endif %}
+        <div class="card-body d-flex flex-column">
+          <h5 class="card-title">{{ book.title }}</h5>
+          <p class="card-subtitle text-muted mb-2">od {{ book.author }}</p>
+          {% if book.book_type %}
+          <span class="badge bg-primary-soft text-primary mb-2 d-inline-block">{{ book.book_type }}</span>
+          {% endif %}
+          <p class="book-price mb-3">{{ book.price|floatformat:2 }} {{ book.currency }}</p>
+          <div class="mb-3">
+            {% if book.available %}
+            <span class="badge bg-success">{{ book.stock }} skladem</span>
+            {% else %}
+            <span class="badge bg-secondary">Není skladem</span>
+            {% endif %}
+          </div>
+          <a href="/books/{{ book.pk }}/" class="btn btn-primary mt-auto">Zobrazit detaily</a>
+        </div>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+<section id="featured" class="mb-5">
+  <div class="row g-4">
+    <div class="col-md-6">
+      <div class="p-4 rounded-4 bg-white shadow-sm h-100">
+        <h3>Proč nakupovat ve FreshBooks?</h3>
+        <p class="text-muted">Čistý, na knihy zaměřený nákupní zážitek s katalogovými daty pro čtenáře i prodejce.</p>
+        <ul class="list-unstyled text-muted mb-0">
+          <li class="mb-2">✔ Ověřená data knih a ceny</li>
+          <li class="mb-2">✔ Snadné prohlížení a rychlá navigace</li>
+          <li>✔ Krásná zobrazení pro každý titul</li>
+        </ul>
+      </div>
+    </div>
+    <div class="col-md-6">
+      <div class="p-4 rounded-4 bg-white shadow-sm h-100">
+        <h3>Zákaznické menu</h3>
+        <p class="text-muted">Rychlé odkazy pro návštěvníky na objevování knih, nové přírůstky a podporu.</p>
+        <div class="d-grid gap-2">
+          <a href="#catalog" class="btn btn-outline-primary">Prozkoumat katalog</a>
+          <a href="#" class="btn btn-outline-primary">Dárkové poukazy</a>
+          <a href="#contact" class="btn btn-outline-primary">Kontaktujte podporu</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="contact" class="p-4 rounded-4 bg-light">
+  <div class="row align-items-center">
+    <div class="col-md-8">
+      <h3>Potřebujete pomoci vybrat knihu?</h3>
+      <p class="text-muted mb-0">Kontaktujte nás pro doporučení, otázky nebo podporu.</p>
+    </div>
+    <div class="col-md-4 text-md-end mt-3 mt-md-0">
+      <a href="#" class="btn btn-primary">Kontaktujte podporu</a>
+    </div>
+  </div>
+</section>
 {% endblock %}

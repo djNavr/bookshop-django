@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="py-5">
+  <div class="row g-4">
+    <div class="col-lg-7">
+      <div class="card shadow-sm rounded-4 p-4">
+        <h1 class="h3 mb-4">Pokračovat k objednávce</h1>
+        <form method="post" novalidate>
+          {% csrf_token %}
+          {% if not user.is_authenticated %}
+          <div class="alert alert-info">Máte účet? <a href="{% url 'login' %}">Přihlaste se</a> pro sledování stavu objednávek.</div>
+          {% endif %}
+          {% for field in form %}
+          <div class="mb-3">
+            <label class="form-label" for="id_{{ field.name }}">{{ field.label }}</label>
+            {{ field }}
+            {% if field.errors %}
+            <div class="text-danger small mt-1">{{ field.errors|striptags }}</div>
+            {% endif %}
+          </div>
+          {% endfor %}
+          <button type="submit" class="btn btn-primary btn-lg">Odeslat objednávku</button>
+          <a href="{% url 'cart_view' %}" class="btn btn-outline-secondary ms-2">Zpět do košíku</a>
+        </form>
+      </div>
+    </div>
+    <div class="col-lg-5">
+      <div class="card shadow-sm rounded-4 p-4 bg-light">
+        <h2 class="h5 mb-3">Souhrn objednávky</h2>
+        <div class="mb-3 text-muted">Zkontrolujte položky ve vašem košíku před odesláním objednávky.</div>
+        <div class="list-group list-group-flush">
+          {% for item in items %}
+          <div class="list-group-item px-0 py-3">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="fw-semibold">{{ item.book.title }}</div>
+                <div class="text-muted small">{{ item.quantity }} × {{ item.book.price|floatformat:2 }} {{ item.book.currency }}</div>
+              </div>
+              <div class="text-end">
+                <div class="fw-semibold">{{ item.line_total|floatformat:2 }} {{ item.book.currency }}</div>
+              </div>
+            </div>
+          </div>
+          {% endfor %}
+        </div>
+        <div class="border-top mt-4 pt-3 text-end">
+          <div class="text-muted">Celkem</div>
+          <div class="h4 fw-bold">{{ total|floatformat:2 }} CZK</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

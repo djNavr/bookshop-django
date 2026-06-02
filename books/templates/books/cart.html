@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="py-5">
+  <h1 class="h3 mb-4">Můj košík</h1>
+  {% if items %}
+  <div class="table-responsive mb-4">
+    <table class="table align-middle">
+      <thead>
+        <tr>
+          <th>Kniha</th>
+          <th class="text-center">Množství</th>
+          <th class="text-end">Cena za kus</th>
+          <th class="text-end">Celkem</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td>
+            <a href="/books/{{ item.book.pk }}/" class="fw-bold text-decoration-none">{{ item.book.title }}</a><br />
+            <small class="text-muted">od {{ item.book.author }}</small>
+          </td>
+          <td class="text-center">{{ item.quantity }}</td>
+          <td class="text-end">{{ item.book.price|floatformat:2 }} {{ item.book.currency }}</td>
+          <td class="text-end">{{ item.line_total|floatformat:2 }} {{ item.book.currency }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+  <div class="d-flex justify-content-end mb-4">
+    <div class="text-end">
+      <p class="mb-1 text-muted">Celkem za položky</p>
+      <p class="h4 fw-bold">{{ total|floatformat:2 }} CZK</p>
+    </div>
+  </div>
+  <div class="d-flex gap-2 flex-wrap">
+    <a href="/" class="btn btn-outline-secondary">Pokračovat v nákupu</a>
+    <a href="{% url 'checkout' %}" class="btn btn-primary">Pokračovat k objednávce</a>
+  </div>
+  {% if not user.is_authenticated %}
+  <div class="mt-3">
+    <p class="text-muted">Pro sledování stavu objednávky se přihlaste nebo zaregistrujte.</p>
+    <a href="{% url 'login' %}" class="btn btn-outline-secondary btn-sm me-2">Přihlásit se</a>
+    <a href="{% url 'register' %}" class="btn btn-outline-secondary btn-sm">Registrovat</a>
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="p-5 rounded-4 bg-white shadow-sm text-center">
+    <h2 class="h4 mb-3">Košík je prázdný</h2>
+    <p class="text-muted mb-4">Přidejte knihy do košíku a vraťte se sem pro kontrolu objednávky.</p>
+    <a href="/" class="btn btn-primary">Prohlédnout katalog</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

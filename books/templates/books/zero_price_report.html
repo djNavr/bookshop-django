@@ -1,0 +1,43 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="py-5">
+  <div class="row g-4 align-items-end mb-4">
+    <div class="col-lg-8">
+      <h1 class="display-6 fw-bold">Report produktů s nulovou cenou</h1>
+      <p class="text-muted">Zkontrolujte chybné produkty a odešlete denní report na servisní email.</p>
+    </div>
+    <div class="col-lg-4 text-lg-end">
+      <a href="{% url 'admin_settings' %}" class="btn btn-outline-primary">Nastavení eshopu</a>
+    </div>
+  </div>
+
+  <div class="card rounded-4 shadow-sm p-4 mb-4">
+    <div class="mb-3">
+      <strong>Servisní email:</strong> {{ service_email|default:'není nastaven' }}
+    </div>
+    <form method="post">
+      {% csrf_token %}
+      <button type="submit" class="btn btn-primary">Odeslat report nyní</button>
+    </form>
+  </div>
+
+  <div class="card rounded-4 shadow-sm p-4">
+    <h2 class="h5">Nalezené produkty s nulovou cenou</h2>
+    {% if report_books %}
+      <ul class="list-group list-group-flush mt-3">
+        {% for book in report_books %}
+        <li class="list-group-item d-flex justify-content-between align-items-start">
+          <div>
+            <strong>{{ book.title }}</strong> — {{ book.author }}<br>
+            <small class="text-muted">ID {{ book.pk }} | Kategorie: {{ book.category }}</small>
+          </div>
+          <span class="badge bg-danger">Cena {{ book.price }}</span>
+        </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="text-muted">Momentálně nejsou žádné produkty s nulovou cenou.</div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

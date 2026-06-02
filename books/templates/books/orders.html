@@ -1,0 +1,31 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="py-5">
+  <h1 class="h3 mb-4">Moje objednávky</h1>
+  {% if orders %}
+  <div class="list-group">
+    {% for order in orders %}
+    <a href="{% url 'order_detail' order.pk %}" class="list-group-item list-group-item-action mb-2 rounded-4 shadow-sm">
+      <div class="d-flex justify-content-between align-items-center">
+        <div>
+          <h5 class="mb-1">Objednávka #{{ order.pk }}</h5>
+          <p class="mb-1 text-muted">Vytvořeno {{ order.created_at|date:'j. n. Y H:i' }}</p>
+        </div>
+        <span class="badge bg-secondary">{{ order.get_status_display }}</span>
+      </div>
+      <div class="d-flex justify-content-between mt-2">
+        <div class="text-muted">{{ order.customer_name }}</div>
+        <div class="fw-semibold">{{ order.total_price|floatformat:2 }} CZK</div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="p-5 rounded-4 bg-white shadow-sm text-center">
+    <h2 class="h4 mb-3">Zatím žádné objednávky</h2>
+    <p class="text-muted mb-4">Zde se zobrazí vaše objednávky po dokončení nákupu.</p>
+    <a href="/" class="btn btn-primary">Prohlédnout katalog</a>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

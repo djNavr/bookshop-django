@@ -26,7 +26,16 @@ python manage.py createsuperuser
 python scripts/seed.py
 ```
 
-4. Run the dev server:
+4. Import the real product catalog from ZIP files:
+
+```bash
+python scripts/import_catalog.py \
+  --catalogue /Users/navr/Downloads/catalogue_3102c132-cacc-487e-bbf2-2875632a8c59.zip \
+  --price /Users/navr/Downloads/Price_3102c132-cacc-487e-bbf2-2875632a8c59.zip \
+  --stock /Users/navr/Downloads/stock_3102c132-cacc-487e-bbf2-2875632a8c59.zip
+```
+
+5. Run the dev server:
 
 ```bash
 python manage.py runserver

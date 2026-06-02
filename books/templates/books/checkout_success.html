@@ -1,0 +1,26 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="py-5">
+  <div class="card shadow-sm rounded-4 p-5 text-center">
+    <h1 class="h3 mb-3">Děkujeme za vaši objednávku</h1>
+    <p class="text-muted mb-4">Vaše objednávka číslo <strong>#{{ order.pk }}</strong> byla úspěšně přijata.</p>
+    <div class="mb-4">
+      <div><strong>Jméno zákazníka</strong></div>
+      <div class="text-muted">{{ order.customer_name }}</div>
+    </div>
+    <div class="mb-4">
+      <div><strong>E-mail</strong></div>
+      <div class="text-muted">{{ order.email }}</div>
+    </div>
+    <div class="mb-4">
+      <div><strong>Celková cena</strong></div>
+      <div class="text-muted">{{ order.total_price|floatformat:2 }} CZK</div>
+    </div>
+    <div class="mb-4">
+      <div><strong>Adresní údaje</strong></div>
+      <div class="text-muted">{{ order.address|linebreaksbr }}</div>
+    </div>
+    <a href="/" class="btn btn-primary">Pokračovat na katalog</a>
+  </div>
+</div>
+{% endblock %}
