@@ -1,0 +1,151 @@
+Shop Futures - Popis e-shopu
+============================
+
+1. Přehled projektu
+-------------------
+
+Tento projekt je malý e-shop postavený na Django 6, aktuálně s SQLite databází pro vývoj, ale připravený pro PostgreSQL v režimu produkce. Hlavní aplikací je `books`, která spravuje katalog produktů (knih), objednávky, blog, recenze a další obchodní vlastnosti.
+
+Cílem projektu je mít funkční katalog knih, košík, platební průchod, uživatelské účty, wishlist, filtrování katalogu, blog a možnost automatického doplnění popisů produktů z externích zdrojů (PEMIC).
+
+
+2. Technologie
+--------------
+
+- Django 6
+- SQLite pro vývoj a PostgreSQL pro produkci
+- Django admin
+- Graphene-Django (GraphQL endpoint)
+- Bootstrap 5 v šablonách
+- `localflavor.cz` pro české PSČ
+- `requests` pro externí dotazy (PEMIC, OpenLibrary, Google Books)
+
+
+3. Struktura projektu
+---------------------
+
+- `myshop/` - hlavní Django projekt
+  - `settings.py` - konfigurace projektu
+  - `urls.py` - hlavní směrování URL
+- `books/` - aplikace s obchodní logikou
+  - `models.py` - databázové modely: Book, ShopConfig, Order, OrderItem, BlogPost, Review
+  - `views.py` - obslužné funkce pro všechny stránky a API chování
+  - `forms.py` - přihlašování, objednávka, recenze, kontaktní formulář
+  - `admin.py` - vlastní admin rozhraní a akce pro hromadné doplňování
+  - `utils.py` - pomocné utilitky (ověření adresy, získání obrázků, PEMIC popisy)
+  - `templates/books/` - šablony pro katalog, detail, košík, objednávky, blog, wishlist
+  - `migrations/` - databázové migrace
+- `scripts/` - importní a seedovací skripty
+  - `seed.py` - vytvoření vzorových knih
+  - `import_catalog.py` - import katalogu, ceny a skladů z ZIP souborů
+- `templates/` - sdílené šablony
+  - `base.html` - hlavní rozvržení
+  - `404.html` - přizpůsobená chyba 404
+- `static/` - statické soubory (CSS, JavaScript)
+
+
+4. Hlavní sekce a funkce
+------------------------
+
+4.1 Katalog (homepage)
+- `books/views.py:index` - načítá knihy, podporuje filtry podle typu, jazyka, vydavatele, autora, kategorie, dostupnosti a textové hledání.
+- Setřídění podle ceny rostoucí/malející, nejstarší a novinky.
+- Zobrazení doporučených knih, novinek a kategorií.
+- K filtrům patří výběr vydavatelství a autorů z existujících dat.
+
+4.2 Detail produktu
+- `books/views.py:detail` - zobrazuje detaily jedné knihy.
+- Zobrazuje galerie obálek, autor, cena, stav skladu, štítky, kategorie a nakladatele.
+- Zahrnuje tlačítka přidat do košíku, wishlist a odkaz zpět do katalogu.
+- Načítá automaticky popis z PEMIC, pokud je v záznamu pouze URL nebo text s PEMIC odkazem.
+- Umožňuje vložit recenzi.
+
+4.3 Košík a objednávka
+- `books/views.py:cart_add` - přidání knihy do košíku v session.
+- `books/views.py:cart_view` - zobrazení položek košíku, součet a info o dopravě zdarma.
+- `books/views.py:checkout` - zpracování objednávky:
+  - validace adresy pomocí utilit
+  - kontrola dostupnosti zásob
+  - výběr způsobu platby: bankovní převod, QR, benefitní karta, faktura
+  - vytvoření `Order` a `OrderItem`
+  - snížení zásob `stock` a nastavení `available` při vyprodání
+- `books/views.py:checkout_success` - potvrzení objednávky s informací o platbě.
+
+4.4 Objednávky a uživatelé
+- `books/views.py:order_list` - seznam objednávek pro přihlášeného uživatele.
+- `books/views.py:order_detail` - detail objednávky.
+- `books/views.py:order_cancel` - možnost zrušení objednávky.
+- `books/views.py:register` - registrace uživatele a okamžité přihlášení.
+- `myshop/urls.py` obsahuje adresy pro login, logout, registraci a sledování objednávek.
+
+4.5 Wishlist
+- `books/views.py:wishlist_view` - zobrazení wishlistu založeného na session.
+- `books/views.py:wishlist_add` / `wishlist_remove` - přidání/odebrání knihy do/vy seznamu přání.
+- V hlavičce je badge s počtem položek.
+
+4.6 Blog a recenze
+- `books/models.py:BlogPost` - blogový příspěvek se slugem, excerptem, obsahem a publikací.
+- `books/models.py:Review` - recenze ke knize s hodnocením, komentářem a stavem schválení.
+- V `books/views.py` jsou funkce `blog_list` a `blog_detail` pro přehled a detail příspěvku.
+- Recenze se odesílají přes detail produktu, schálení probíhá v adminu.
+
+4.7 Vyhledávání a návrhy
+- `books/views.py:search_suggestions` - JSON endpoint pro rychlé hledání při zadávání.
+- Běží nad `title`, `author`, `publisher`, `sortkod`, `isbn`, `ean`.
+- V indexu lze dotaz dále filtrovat.
+
+4.8 Kontakty
+- `books/views.py:contact` - kontaktní formulář s tématy.
+- Odesílá e-mail na servisní adresu z `ShopConfig` nebo `DEFAULT_FROM_EMAIL`.
+
+4.9 Správa a admin
+- `books/admin.py` - přizpůsobený admin pro modely Book, Order, BlogPost, Review, ShopConfig.
+- Specializované akce:
+  - doplnění chybějících obalových obrázků (`fill_missing_cover_images`)
+  - doplnění popisů z PEMIC URL (`fill_missing_descriptions`)
+- `ShopConfig` ukládá název obchodu, servisní e-mail, režim údržby a skrývání nulových cen.
+
+4.10 Externí obohacení knih
+- `books/utils.py:populate_book_cover_images` - hledá obálky přes OpenLibrary a Google Books.
+- `books/utils.py:populate_book_description_from_pemic` - načítá textový popis z PEMIC URL, pokud je popis v databázi prázdný nebo obsahuje PEMIC odkaz.
+
+4.11 GraphQL
+- V `myshop/urls.py` je endpoint `/graphql` z `GraphQLView`.
+- Projekt má Graphene-Django nastavení jako rozšíření pro budoucí API.
+
+
+5. Důležité soubory pro další úpravy
+-----------------------------------
+
+- `books/models.py` - přidávání nových polí do produktů, objednávek, blogu a recenzí.
+- `books/views.py` - obchodní pravidla, objednávky, filtrování, recenze, wishlist.
+- `books/forms.py` - formuláře pro objednávku, recenzi, registraci, kontakt.
+- `books/utils.py` - dotazy na externí služby, PEMIC, obrázky, ověření adres.
+- `books/admin.py` - admin operace a vlastní akce.
+- `books/templates/books/` - uživatelské rozhraní jednotlivých stránek.
+- `templates/base.html` - obecná šablona, navigace, hlavička, patička.
+- `scripts/import_catalog.py` - import katalogu, ceny, skladů a popisů z externích dat.
+- `scripts/seed.py` - rychlé naplnění databáze testovými knihami.
+
+
+6. Doporučené další kroky
+-------------------------
+
+- Doplnit plnou validaci a uložení platebních údajů v checkoutu.
+- Rozšířit logiku stavu objednávek (notifikace, e-mail, fakturace).
+- Přidat správu blogu v adminu s náhledy a kategoriemi.
+- Přidat přihlášení přes sociální sítě nebo objednávku bez registrace.
+- Vytvořit robustní importník pro PEMIC / GATE data s planem opětovného načítání.
+- Přidat testy pro klíčové funkce: automatické doplňování popisu, košík, objednávky.
+- Případně přidat API dokumentaci pro GraphQL endpoint.
+
+
+7. Poznámky k používání
+----------------------
+
+- Projekt běží lokálně na `python manage.py runserver`.
+- Pro lokální PostgreSQL vývoj lze použít `docker-compose.yml` a `.env.example`.
+- Pro produkční nasazení je vhodné nasadit PostgreSQL, sbírat statické soubory a použít zabezpečený e-mail backend.
+- Přepnutí na PostgreSQL probíhá přes environmentální proměnné v `myshop/settings.py` (např. `DB_ENGINE=postgresql`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` nebo `DATABASE_URL`).
+- Správu eshopu prováděj v Django adminu, kde lze upravovat produktové údaje i blog/recenze.
+- PEMIC popisy je možné doplňovat ručně i hromadně přes admin akce.
