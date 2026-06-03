@@ -6,12 +6,13 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth import login
 from django.contrib.auth.decorators import login_required
 from django.core.mail import send_mail
-from django.db.models import Count
+from django.db.models import Count, Q
+from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
 
-from .forms import CheckoutForm, ContactForm, RegistrationForm, ShopConfigForm
-from .models import Book, Order, OrderItem, ShopConfig
-from .utils import verify_address
+from .forms import CheckoutForm, ContactForm, RegistrationForm, ReviewForm, ShopConfigForm
+from .models import BlogPost, Book, Order, OrderItem, Review, ShopConfig
+from .utils import populate_book_description_from_pemic, verify_address
 
 
 def _get_cart_items(request):
@@ -40,8 +41,26 @@ def _get_cart_items(request):
     return items, total
 
 
+FREE_SHIPPING_THRESHOLD = 1500
+WISHLIST_SESSION_KEY = 'wishlist'
+
+
 def _get_shop_config():
     return ShopConfig.get_solo()
+
+
+def _get_wishlist_items(request):
+    wishlist = request.session.get(WISHLIST_SESSION_KEY, [])
+    return Book.objects.filter(pk__in=[int(pk) for pk in wishlist]) if wishlist else []
+
+
+def _update_wishlist(request, pk, add=True):
+    wishlist = set(request.session.get(WISHLIST_SESSION_KEY, []))
+    if add:
+        wishlist.add(str(pk))
+    else:
+        wishlist.discard(str(pk))
+    request.session[WISHLIST_SESSION_KEY] = list(wishlist)
 
 
 def index(request):
@@ -51,8 +70,12 @@ def index(request):
         books = books.filter(price__gt=0)
 
     book_type = request.GET.get('book_type', '')
+    language = request.GET.get('language', '')
     category = request.GET.get('category', '')
     category_group = request.GET.get('category_group', '')
+    publisher = request.GET.get('publisher', '')
+    author = request.GET.get('author', '')
+    sort_by = request.GET.get('sort', '')
     in_stock = request.GET.get('in_stock', '')
     q = request.GET.get('q', '').strip()
 
@@ -60,17 +83,47 @@ def index(request):
         books = books.filter(available=True, stock__gt=0)
     if book_type:
         books = books.filter(book_type=book_type)
+    if language:
+        books = books.filter(language=language)
+    if publisher:
+        books = books.filter(publisher__iexact=publisher)
+    if author:
+        books = books.filter(author__icontains=author)
     if category:
         books = books.filter(category=category)
     elif category_group:
         books = books.filter(category__startswith=category_group)
     if q:
-        books = books.filter(title__icontains=q)
+        books = books.filter(
+            Q(title__icontains=q)
+            | Q(author__icontains=q)
+            | Q(publisher__icontains=q)
+            | Q(sortkod__icontains=q)
+            | Q(isbn__icontains=q)
+            | Q(ean__icontains=q)
+            | Q(category__icontains=q)
+        )
+
+    if sort_by == 'price_asc':
+        books = books.order_by('price')
+    elif sort_by == 'price_desc':
+        books = books.order_by('-price')
+    elif sort_by == 'oldest':
+        books = books.order_by('created_at')
+    else:
+        books = books.order_by('-created_at')
 
     book_types = Book.objects.all()
     if config.hide_zero_price_products:
         book_types = book_types.filter(price__gt=0)
     book_types = book_types.values_list('book_type', flat=True).distinct().order_by('book_type')
+    languages = Book.objects.exclude(language='').values_list('language', flat=True).distinct().order_by('language')
+    publisher_options = Book.objects.exclude(publisher='').values('publisher').annotate(count=Count('pk')).order_by('-count')[:20]
+    author_options = Book.objects.exclude(author='').values('author').annotate(count=Count('pk')).order_by('-count')[:20]
+    if config.hide_zero_price_products:
+        book_types = book_types.filter(price__gt=0)
+    book_types = book_types.values_list('book_type', flat=True).distinct().order_by('book_type')
+    languages = Book.objects.exclude(language='').values_list('language', flat=True).distinct().order_by('language')
 
     featured_books = Book.objects.filter(available=True)
     if config.hide_zero_price_products:
@@ -81,8 +134,15 @@ def index(request):
         'books': books,
         'featured_books': featured_books,
         'book_types': [bt for bt in book_types if bt],
+        'languages': [lang for lang in languages if lang],
+        'publisher_options': [item['publisher'] for item in publisher_options],
+        'author_options': [item['author'] for item in author_options],
         'selected_filters': {
             'book_type': book_type,
+            'language': language,
+            'publisher': publisher,
+            'author': author,
+            'sort': sort_by,
             'category': category,
             'category_group': category_group,
             'in_stock': in_stock,
@@ -97,7 +157,82 @@ def detail(request, pk):
     if config.hide_zero_price_products and book.price <= 0:
         messages.warning(request, 'Tento titul je momentálně skrytý, protože má chybnou nebo nulovou cenu.')
         return redirect('index')
-    return render(request, 'books/detail.html', {'book': book})
+
+    wishlist = request.session.get(WISHLIST_SESSION_KEY, [])
+    populate_book_description_from_pemic(book)
+    review_form = ReviewForm()
+    if request.method == 'POST' and 'review_submit' in request.POST:
+        review_form = ReviewForm(request.POST)
+        if review_form.is_valid():
+            Review.objects.create(
+                book=book,
+                user=request.user if request.user.is_authenticated else None,
+                name=request.user.get_full_name() or request.user.username if request.user.is_authenticated else 'Host',
+                rating=int(review_form.cleaned_data['rating']),
+                comment=review_form.cleaned_data['comment'],
+                approved=False,
+            )
+            messages.success(request, 'Děkujeme za vaši recenzi! Po kontrole ji brzy zveřejníme.')
+            return redirect('book-detail', pk=book.pk)
+
+    return render(request, 'books/detail.html', {
+        'book': book,
+        'is_in_wishlist': str(book.pk) in wishlist,
+        'review_form': review_form,
+    })
+
+
+def search_suggestions(request):
+    q = request.GET.get('q', '').strip()
+    suggestions = []
+    if q:
+        books = Book.objects.filter(
+            Q(title__icontains=q)
+            | Q(author__icontains=q)
+            | Q(publisher__icontains=q)
+            | Q(sortkod__icontains=q)
+            | Q(isbn__icontains=q)
+            | Q(ean__icontains=q)
+        ).order_by('-stock', '-created_at')[:8]
+        for book in books:
+            suggestions.append({
+                'id': book.pk,
+                'title': book.title,
+                'author': book.author,
+                'cover': book.primary_image,
+                'url': book.get_absolute_url(),
+                'price': f"{book.price:.2f} {book.currency}",
+            })
+    return JsonResponse({'suggestions': suggestions})
+
+
+def wishlist_view(request):
+    items = _get_wishlist_items(request)
+    return render(request, 'books/wishlist.html', {'items': items})
+
+
+def wishlist_add(request, pk):
+    book = get_object_or_404(Book, pk=pk)
+    _update_wishlist(request, book.pk, add=True)
+    messages.success(request, f'Přidáno do seznamu přání: {book.title}')
+    return redirect('wishlist')
+
+
+def wishlist_remove(request, pk):
+    book = get_object_or_404(Book, pk=pk)
+    _update_wishlist(request, book.pk, add=False)
+    messages.success(request, f'Odstraněno ze seznamu přání: {book.title}')
+    return redirect('wishlist')
+
+
+def blog_list(request):
+    posts = BlogPost.objects.filter(published=True).order_by('-published_at', '-created_at')
+    return render(request, 'books/blog_list.html', {'posts': posts})
+
+
+def blog_detail(request, slug):
+    post = get_object_or_404(BlogPost, slug=slug, published=True)
+    return render(request, 'books/blog_detail.html', {'post': post})
 
 
 def register(request):
@@ -132,7 +267,15 @@ def cart_add(request, pk):
 
 def cart_view(request):
     items, total = _get_cart_items(request)
-    return render(request, 'books/cart.html', {'items': items, 'total': total})
+    free_shipping_remaining = 0
+    if total > 0 and total < FREE_SHIPPING_THRESHOLD:
+        free_shipping_remaining = FREE_SHIPPING_THRESHOLD - total
+    return render(request, 'books/cart.html', {
+        'items': items,
+        'total': total,
+        'free_shipping_threshold': FREE_SHIPPING_THRESHOLD,
+        'free_shipping_remaining': free_shipping_remaining,
+    })
 
 
 def checkout(request):
@@ -162,12 +305,16 @@ def checkout(request):
                         messages.error(request, f'Kniha {book.title} není momentálně dostupná v požadovaném množství.')
                         return redirect('cart_view')
 
+                payment_method = form.cleaned_data['payment_method']
+                payment_code = 'QR' if payment_method == Order.PAYMENT_METHOD_QR else None
                 order = Order.objects.create(
                     user=request.user if request.user.is_authenticated else None,
                     customer_name=form.cleaned_data['name'],
                     email=form.cleaned_data['email'],
                     address=form.get_address(),
                     total_price=total,
+                    payment_method=payment_method,
+                    payment_code=payment_code,
                 )
 
                 for item in items:
@@ -378,6 +525,27 @@ def zero_price_report(request):
 
 
 @login_required(login_url='login')
+def order_cancel(request, pk):
+    order = get_object_or_404(Order, pk=pk, user=request.user)
+    if order.status in [Order.STATUS_SHIPPED, Order.STATUS_COMPLETED, Order.STATUS_CANCELLED]:
+        messages.warning(request, 'Tuto objednávku již nelze zrušit.')
+        return redirect('order_detail', pk=order.pk)
+
+    if request.method == 'POST':
+        order.status = Order.STATUS_CANCELLED
+        order.save()
+        for item in order.items.all():
+            book = item.book
+            book.stock = book.stock + item.quantity
+            book.available = True
+            book.save()
+        messages.success(request, 'Objednávka byla zrušena a sklad byl aktualizován.')
+        return redirect('order_detail', pk=order.pk)
+
+    return redirect('order_detail', pk=order.pk)
+
+
+@login_required(login_url='login')
 def order_list(request):
     orders = request.user.orders.order_by('-created_at')
     return render(request, 'books/orders.html', {'orders': orders})
@@ -387,3 +555,7 @@ def order_list(request):
 def order_detail(request, pk):
     order = get_object_or_404(Order, pk=pk, user=request.user)
     return render(request, 'books/order_detail.html', {'order': order})
+
+
+def page_not_found(request, exception=None):
+    return render(request, '404.html', status=404)

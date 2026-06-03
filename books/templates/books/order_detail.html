@@ -53,7 +53,15 @@
         {% endfor %}
       </div>
     </div>
-    <a href="{% url 'order_list' %}" class="btn btn-outline-secondary mt-4">Zpět na moje objednávky</a>
+    <div class="d-flex gap-2 mt-4 flex-wrap">
+      <a href="{% url 'order_list' %}" class="btn btn-outline-secondary">Zpět na moje objednávky</a>
+      {% if order.status not in ['shipped', 'completed', 'cancelled'] %}
+      <form method="post" action="{% url 'order_cancel' order.pk %}" class="m-0">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-danger">Zrušit objednávku</button>
+      </form>
+      {% endif %}
+    </div>
   </div>
 </div>
 {% endblock %}

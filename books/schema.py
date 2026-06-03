@@ -6,7 +6,9 @@ from .models import Book
 class BookType(DjangoObjectType):
     class Meta:
         model = Book
-        fields = ('id', 'sortkod', 'title', 'author', 'description', 'price', 'currency', 'cover_image', 'cover_images', 'publisher', 'ean', 'isbn', 'book_type', 'category', 'stock', 'available')
+        fields = (
+            'id', 'sortkod', 'title', 'author', 'description', 'price', 'currency', 'cover_image', 'cover_images', 'publisher', 'ean', 'isbn', 'book_type', 'language', 'preview_url', 'audio_sample_url', 'video_url', 'tags', 'recommended', 'new_arrival', 'category', 'stock', 'available'
+        )
 
 
 class Query(graphene.ObjectType):

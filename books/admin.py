@@ -2,16 +2,16 @@ from django.contrib import admin, messages
 from django.db.models import Q
 from django.shortcuts import redirect
 from django.urls import path, reverse
-from .models import Book, Order, OrderItem, ShopConfig
-from .utils import populate_book_cover_images
+from .models import Book, BlogPost, Order, OrderItem, Review, ShopConfig
+from .utils import populate_book_cover_images, populate_book_description_from_pemic
 
 
 @admin.register(Book)
 class BookAdmin(admin.ModelAdmin):
-    list_display = ('sortkod', 'title', 'author', 'book_type', 'currency', 'stock', 'available', 'created_at')
-    list_filter = ('book_type', 'available')
-    search_fields = ('title', 'author', 'sortkod', 'category')
-    actions = ['fill_missing_cover_images']
+    list_display = ('sortkod', 'title', 'author', 'book_type', 'language', 'recommended', 'new_arrival', 'currency', 'stock', 'available', 'created_at')
+    list_filter = ('book_type', 'language', 'recommended', 'new_arrival', 'available')
+    search_fields = ('title', 'author', 'sortkod', 'category', 'publisher', 'ean', 'isbn')
+    actions = ['fill_missing_cover_images', 'fill_missing_descriptions']
     change_list_template = 'admin/books/book/change_list.html'
     change_form_template = 'admin/books/book/change_form.html'
 
@@ -58,6 +58,24 @@ class BookAdmin(admin.ModelAdmin):
         messages.success(request, message)
         return redirect(request.META.get('HTTP_REFERER') or reverse('admin:books_book_changelist'))
 
+    def fill_missing_descriptions(self, request, queryset):
+        updated = 0
+        skipped = 0
+        for book in queryset:
+            description = populate_book_description_from_pemic(book)
+            if description:
+                updated += 1
+            else:
+                skipped += 1
+
+        message = f'Doplněno popisů pro {updated} vybraných knih.'
+        if skipped:
+            message += f' {skipped} knih zůstalo bez dostupného popisu.'
+        messages.success(request, message)
+        return redirect(request.META.get('HTTP_REFERER') or reverse('admin:books_book_changelist'))
+
+    fill_missing_descriptions.short_description = 'Doplnit chybějící popisy z PEMIC URL'
+
 
 class OrderItemInline(admin.TabularInline):
     model = OrderItem
@@ -76,8 +94,35 @@ class ShopConfigAdmin(admin.ModelAdmin):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('pk', 'external_order_id', 'source_system', 'user', 'customer_name', 'email', 'total_price', 'status', 'created_at')
+    list_display = ('pk', 'external_order_id', 'source_system', 'payment_method', 'user', 'customer_name', 'email', 'total_price', 'status', 'created_at')
     readonly_fields = ('total_price', 'created_at')
-    list_filter = ('status', 'created_at', 'source_system')
+    list_filter = ('status', 'created_at', 'source_system', 'payment_method')
     search_fields = ('external_order_id', 'customer_name', 'email', 'user__username')
+    actions = ['mark_orders_cancelled']
     inlines = [OrderItemInline]
+
+    def mark_orders_cancelled(self, request, queryset):
+        updated = queryset.update(status=Order.STATUS_CANCELLED)
+        self.message_user(request, f'{updated} objednávek označeno jako zrušené.')
+    mark_orders_cancelled.short_description = 'Označit vybrané objednávky jako zrušené'
+
+
+@admin.register(BlogPost)
+class BlogPostAdmin(admin.ModelAdmin):
+    list_display = ('title', 'published', 'published_at', 'created_at')
+    prepopulated_fields = {'slug': ('title',)}
+    list_filter = ('published',)
+    search_fields = ('title', 'excerpt', 'content')
+
+
+@admin.register(Review)
+class ReviewAdmin(admin.ModelAdmin):
+    list_display = ('book', 'name', 'rating', 'approved', 'created_at')
+    list_filter = ('approved', 'rating', 'created_at')
+    search_fields = ('book__title', 'name', 'comment')
+    actions = ['approve_reviews']
+
+    def approve_reviews(self, request, queryset):
+        updated = queryset.update(approved=True)
+        self.message_user(request, f'{updated} recenzí schváleno.')
+    approve_reviews.short_description = 'Schválit vybrané recenze'

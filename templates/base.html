@@ -20,6 +20,7 @@
             <li class="nav-item"><a class="nav-link" href="{% url 'index' %}#catalog">Katalog</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'index' %}#featured">Doporučeno</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'categories' %}">Kategorie</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'wishlist' %}">Wishlist{% if wishlist_count %} <span class="badge bg-secondary ms-1">{{ wishlist_count }}</span>{% endif %}</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'contact' %}">Kontakt</a></li>
             <li class="nav-item"><a class="nav-link" href="/cart/">Košík</a></li>
             {% if user.is_staff %}

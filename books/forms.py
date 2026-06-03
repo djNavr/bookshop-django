@@ -25,15 +25,40 @@ class RegistrationForm(UserCreationForm):
 
 
 class CheckoutForm(forms.Form):
+    PAYMENT_METHOD_CHOICES = [
+        ('bank_transfer', 'Bankovní převod'),
+        ('qr_payment', 'Platba přes QR'),
+        ('benefit_card', 'Benefitní karta'),
+        ('invoice', 'Platba na fakturu'),
+    ]
+
     name = forms.CharField(max_length=255, widget=forms.TextInput(attrs={'class': 'form-control'}), label='Jméno a příjmení')
     email = forms.EmailField(widget=forms.EmailInput(attrs={'class': 'form-control'}), label='E-mail')
     street = forms.CharField(max_length=255, widget=forms.TextInput(attrs={'class': 'form-control'}), label='Ulice a číslo domu')
     city = forms.CharField(max_length=128, widget=forms.TextInput(attrs={'class': 'form-control'}), label='Město')
     postal_code = CZPostalCodeField(widget=forms.TextInput(attrs={'class': 'form-control'}), label='PSČ')
     country = forms.CharField(max_length=64, initial='Česká republika', widget=forms.TextInput(attrs={'class': 'form-control', 'readonly': 'readonly'}), label='Stát')
+    payment_method = forms.ChoiceField(
+        choices=PAYMENT_METHOD_CHOICES,
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Způsob platby',
+        initial='bank_transfer',
+    )
 
     def get_address(self):
         return f"{self.cleaned_data['street']}\n{self.cleaned_data['postal_code']} {self.cleaned_data['city']}\n{self.cleaned_data['country']}"
+
+
+class ReviewForm(forms.Form):
+    rating = forms.ChoiceField(
+        choices=[(str(i), f"{i} / 5") for i in range(5, 0, -1)],
+        widget=forms.Select(attrs={'class': 'form-select'}),
+        label='Hodnocení',
+    )
+    comment = forms.CharField(
+        widget=forms.Textarea(attrs={'class': 'form-control', 'rows': 4, 'placeholder': 'Napište recenzi ke knize...'}),
+        label='Vaše recenze',
+    )
 
 
 class ContactForm(forms.Form):

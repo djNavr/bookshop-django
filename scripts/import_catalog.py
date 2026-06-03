@@ -14,7 +14,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'myshop.settings')
 django.setup()
 
 from books.models import Book  # noqa: E402
-from books.utils import fetch_book_cover_urls  # noqa: E402
+from books.utils import fetch_book_cover_urls, fetch_pemic_description  # noqa: E402
 
 
 def normalize_text(value):
@@ -132,6 +132,10 @@ def import_catalogue(catalogue_path, price_path, stock_path):
         dostupnost = row.get('DOSTUPNOST', '')
         book_type = row.get('SORTDRUH', '')
         category = row.get('SKUPNAZEV', '')
+        preview_url = next(
+            (row.get(key) for key in ['PREVIEW_URL', 'URL', 'WEB', 'WEB_URL', 'LINK', 'DETAIL_URL'] if row.get(key)),
+            ''
+        )
 
         if not cover_images:
             fallback_images = fetch_book_cover_urls(Book(title=title, author=author, isbn=isbn, ean=ean))
@@ -159,6 +163,11 @@ def import_catalogue(catalogue_path, price_path, stock_path):
 
         currency = (price_row.get('MENA') or row.get('MENA') or 'CZK').strip() or 'CZK'
 
+        if not description and preview_url:
+            fetched_description = fetch_pemic_description(preview_url)
+            if fetched_description:
+                description = fetched_description
+
         defaults = {
             'title': title,
             'author': author,
@@ -168,6 +177,7 @@ def import_catalogue(catalogue_path, price_path, stock_path):
             'cover_image': cover_image,
             'cover_images': cover_images,
             'publisher': publisher,
+            'preview_url': preview_url,
             'ean': ean,
             'isbn': isbn,
             'book_type': book_type,

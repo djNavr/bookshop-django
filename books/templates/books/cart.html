@@ -32,6 +32,11 @@
     <div class="text-end">
       <p class="mb-1 text-muted">Celkem za položky</p>
       <p class="h4 fw-bold">{{ total|floatformat:2 }} CZK</p>
+      {% if free_shipping_remaining > 0 %}
+      <p class="mb-0 text-success">Přidejte ještě {{ free_shipping_remaining|floatformat:2 }} CZK pro dopravu zdarma.</p>
+      {% elif total > 0 %}
+      <p class="mb-0 text-success">Máte dopravu zdarma!</p>
+      {% endif %}
     </div>
   </div>
   <div class="d-flex gap-2 flex-wrap">

@@ -15,11 +15,18 @@ urlpatterns = [
     path('checkout/success/<int:order_id>/', book_views.checkout_success, name='checkout_success'),
     path('orders/', book_views.order_list, name='order_list'),
     path('orders/<int:pk>/', book_views.order_detail, name='order_detail'),
+    path('orders/<int:pk>/cancel/', book_views.order_cancel, name='order_cancel'),
     path('accounts/register/', book_views.register, name='register'),
     path('accounts/login/', auth_views.LoginView.as_view(template_name='registration/login.html'), name='login'),
     path('accounts/logout/', auth_views.LogoutView.as_view(next_page='index'), name='logout'),
+    path('wishlist/', book_views.wishlist_view, name='wishlist'),
+    path('wishlist/add/<int:pk>/', book_views.wishlist_add, name='wishlist_add'),
+    path('wishlist/remove/<int:pk>/', book_views.wishlist_remove, name='wishlist_remove'),
+    path('search-suggestions/', book_views.search_suggestions, name='search_suggestions'),
     path('admin/settings/', book_views.admin_settings, name='admin_settings'),
     path('admin/zero-price-report/', book_views.zero_price_report, name='zero_price_report'),
     path('contact/', book_views.contact, name='contact'),
     path('graphql', GraphQLView.as_view(graphiql=True)),
 ]
+
+handler404 = 'books.views.page_not_found'

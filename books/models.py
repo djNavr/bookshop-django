@@ -1,6 +1,7 @@
 from django.conf import settings
 from django.core.validators import MinValueValidator
 from django.db import models
+from django.urls import reverse
 
 
 class Book(models.Model):
@@ -15,6 +16,13 @@ class Book(models.Model):
     ean = models.CharField(max_length=32, blank=True)
     isbn = models.CharField(max_length=32, blank=True)
     book_type = models.CharField(max_length=128, blank=True)
+    language = models.CharField(max_length=16, blank=True)
+    preview_url = models.URLField(blank=True)
+    audio_sample_url = models.URLField(blank=True)
+    video_url = models.URLField(blank=True)
+    tags = models.CharField(max_length=255, blank=True, help_text='Např. Novinka, Akce, Doporučeno')
+    recommended = models.BooleanField(default=False)
+    new_arrival = models.BooleanField(default=False)
     category = models.CharField(max_length=255, blank=True)
     currency = models.CharField(max_length=8, default='CZK')
     stock = models.IntegerField(default=0)
@@ -57,8 +65,35 @@ class Book(models.Model):
                     suggestions.append(image)
         return suggestions[:4]
 
+    def get_absolute_url(self):
+        return reverse('book-detail', args=[self.pk])
+
+    @property
+    def display_labels(self):
+        labels = [label.strip() for label in self.tags.split(',') if label.strip()]
+        if self.new_arrival:
+            labels.insert(0, 'Novinka')
+        if self.recommended:
+            labels.insert(0, 'Doporučeno')
+        return labels
+
     def __str__(self):
         return f"{self.title} — {self.author}"
+
+    @property
+    def approved_reviews(self):
+        return self.reviews.filter(approved=True)
+
+    @property
+    def average_rating(self):
+        reviews = self.approved_reviews
+        if not reviews.exists():
+            return None
+        return reviews.aggregate(models.Avg('rating'))['rating__avg']
+
+    @property
+    def review_count(self):
+        return self.approved_reviews.count()
 
 
 class ShopConfig(models.Model):
@@ -93,12 +128,24 @@ class Order(models.Model):
     STATUS_COMPLETED = 'completed'
     STATUS_CANCELLED = 'cancelled'
 
+    PAYMENT_METHOD_BANK = 'bank_transfer'
+    PAYMENT_METHOD_QR = 'qr_payment'
+    PAYMENT_METHOD_BENEFIT = 'benefit_card'
+    PAYMENT_METHOD_INVOICE = 'invoice'
+
     ORDER_STATUS_CHOICES = [
         (STATUS_NEW, 'Nová objednávka'),
         (STATUS_PROCESSING, 'Ve zpracování'),
         (STATUS_SHIPPED, 'Odesláno'),
         (STATUS_COMPLETED, 'Dokončeno'),
         (STATUS_CANCELLED, 'Zrušeno'),
+    ]
+
+    PAYMENT_METHOD_CHOICES = [
+        (PAYMENT_METHOD_BANK, 'Bankovní převod'),
+        (PAYMENT_METHOD_QR, 'Platba přes QR'),
+        (PAYMENT_METHOD_BENEFIT, 'Benefitní karta'),
+        (PAYMENT_METHOD_INVOICE, 'Platba na fakturu'),
     ]
 
     user = models.ForeignKey(
@@ -111,6 +158,7 @@ class Order(models.Model):
     customer_name = models.CharField(max_length=255)
     external_order_id = models.CharField(max_length=128, blank=True, null=True, unique=True)
     source_system = models.CharField(max_length=64, blank=True, null=True)
+    payment_method = models.CharField(max_length=32, choices=PAYMENT_METHOD_CHOICES, blank=True)
     payment_code = models.CharField(max_length=64, blank=True, null=True)
     shipping_code = models.CharField(max_length=64, blank=True, null=True)
     email = models.EmailField(blank=True)
@@ -135,3 +183,39 @@ class OrderItem(models.Model):
 
     def __str__(self):
         return f"{self.quantity} × {self.book.title}"
+
+
+class BlogPost(models.Model):
+    title = models.CharField(max_length=255)
+    slug = models.SlugField(max_length=255, unique=True)
+    excerpt = models.TextField(blank=True)
+    content = models.TextField()
+    published = models.BooleanField(default=True)
+    published_at = models.DateTimeField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-published_at', '-created_at']
+
+    def __str__(self):
+        return self.title
+
+    def get_absolute_url(self):
+        return reverse('blog_detail', args=[self.slug])
+
+
+class Review(models.Model):
+    book = models.ForeignKey(Book, on_delete=models.CASCADE, related_name='reviews')
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL)
+    name = models.CharField(max_length=255)
+    rating = models.PositiveSmallIntegerField(default=5)
+    comment = models.TextField()
+    approved = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"Recenze {self.book.title} od {self.name}"

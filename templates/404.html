@@ -1,0 +1,11 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="py-5 text-center">
+  <div class="mx-auto" style="max-width: 560px;">
+    <h1 class="display-1 fw-bold">404</h1>
+    <p class="lead text-muted">Omlouváme se, stránka, kterou hledáte, nebyla nalezena.</p>
+    <p class="mb-4">Zkontrolujte URL nebo se vraťte na domovskou stránku a pokračujte v prohlížení našeho katalogu.</p>
+    <a href="{% url 'index' %}" class="btn btn-primary btn-lg">Zpět na domovskou stránku</a>
+  </div>
+</div>
+{% endblock %}

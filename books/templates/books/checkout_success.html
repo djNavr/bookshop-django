@@ -17,6 +17,32 @@
       <div class="text-muted">{{ order.total_price|floatformat:2 }} CZK</div>
     </div>
     <div class="mb-4">
+      <div><strong>Způsob platby</strong></div>
+      <div class="text-muted">{{ order.get_payment_method_display }}</div>
+    </div>
+    {% if order.payment_method == 'bank_transfer' %}
+    <div class="mb-4 alert alert-info">
+      Platba proběhne bankovním převodem. Prosím použijte do poznámky číslo objednávky <strong>#{{ order.pk }}</strong>.
+      Bankovní detaily obdržíte v potvrzovacím e-mailu.
+    </div>
+    {% elif order.payment_method == 'invoice' %}
+    <div class="mb-4 alert alert-info">
+      Objednávku uhradíte na fakturu. Fakturu vám rozešleme na e-mail s platebními údaji.
+      Objednávku prosím uhraďte do 14 dnů.
+    </div>
+    {% elif order.payment_method == 'benefit_card' %}
+    <div class="mb-4 alert alert-info">
+      Služba benefitní karty bude zpracována při expedici objednávky.
+      V případě potřeby vás budeme kontaktovat pro dokončení platby.
+    </div>
+    {% elif order.payment_method == 'qr_payment' %}
+    <div class="mb-4 alert alert-info">
+      Platba přes QR číslo proběhne ve vaší platbní aplikaci.
+      Stáhněte si QR kód níže a použijte jej pro platbu.
+      <div class="mt-2"><strong>{{ order.payment_code }}</strong></div>
+    </div>
+    {% endif %}
+    <div class="mb-4">
       <div><strong>Adresní údaje</strong></div>
       <div class="text-muted">{{ order.address|linebreaksbr }}</div>
     </div>

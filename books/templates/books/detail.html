@@ -27,15 +27,28 @@
       <div class="card-body p-4">
         <h5 class="card-title">{{ book.title }}</h5>
         <p class="text-muted mb-1">od {{ book.author }}</p>
+        {% if book.language %}
+        <p class="text-muted small mb-2">Jazyk: {{ book.language }}</p>
+        {% endif %}
         <p class="book-price display-6 fw-bold mb-3">{{ book.price|floatformat:2 }} {{ book.currency }}</p>
         {% if book.available %}
         <span class="badge bg-success mb-3">{{ book.stock }} skladem</span>
         {% else %}
         <span class="badge bg-secondary mb-3">Není skladem</span>
         {% endif %}
+        <div class="mb-3">
+          {% for label in book.display_labels %}
+          <span class="badge bg-warning text-dark me-1">{{ label }}</span>
+          {% endfor %}
+        </div>
         <form action="/cart/add/{{ book.pk }}/" method="post" class="d-grid gap-2">
           {% csrf_token %}
           <button type="submit" class="btn btn-primary btn-lg">Přidat do košíku</button>
+          {% if is_in_wishlist %}
+          <a href="{% url 'wishlist_remove' book.pk %}" class="btn btn-outline-danger">Odstranit ze seznamu přání</a>
+          {% else %}
+          <a href="{% url 'wishlist_add' book.pk %}" class="btn btn-outline-secondary">Přidat do seznamu přání</a>
+          {% endif %}
           <a href="/" class="btn btn-outline-secondary">Zpět do katalogu</a>
         </form>
       </div>
@@ -73,6 +86,24 @@
       <div class="mt-3 p-3 bg-light rounded-4 border">
         <strong>Nakladatelství</strong>
         <div class="mt-2"><span class="badge bg-secondary">{{ book.publisher }}</span></div>
+      </div>
+      {% endif %}
+      {% if book.preview_url or book.audio_sample_url or book.video_url or book.display_labels %}
+      <div class="mt-4 p-3 bg-light rounded-4 border">
+        <strong>Další materiály</strong>
+        <div class="mt-3">
+          {% if book.preview_url %}
+          <p><a href="{{ book.preview_url }}" target="_blank" class="text-decoration-none">📄 Více informací o knize</a></p>
+          {% endif %}
+          {% if book.audio_sample_url %}
+          <div class="mb-3">
+            <audio controls src="{{ book.audio_sample_url }}" class="w-100"></audio>
+          </div>
+          {% endif %}
+          {% if book.video_url %}
+          <p><a href="{{ book.video_url }}" target="_blank" class="text-decoration-none">🎥 Video k titulu</a></p>
+          {% endif %}
+        </div>
       </div>
       {% endif %}
       {% if book.publisher_image_suggestions %}

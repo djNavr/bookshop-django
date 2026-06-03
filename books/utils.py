@@ -1,3 +1,4 @@
+import re
 import requests
 
 from django.conf import settings
@@ -65,6 +66,85 @@ def _safe_request_json(url, params=None, headers=None):
         return response.json()
     except requests.RequestException:
         return None
+
+
+PEMIC_ANNOTATION_PATTERN = re.compile(r'https?://(?:www\.)?pemic-books\.cz/ASPX/Annotation\.aspx', re.IGNORECASE)
+
+
+def _is_pemic_annotation_url(url):
+    return bool(url and PEMIC_ANNOTATION_PATTERN.search(url))
+
+
+def _safe_request_text(url, headers=None):
+    try:
+        response = requests.get(url, headers=headers or {}, timeout=10)
+        response.raise_for_status()
+        text = response.text or ''
+        text = re.sub(r'<[^>]+>', ' ', text)
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text or None
+    except requests.RequestException:
+        return None
+
+
+def _looks_like_url_only_text(value):
+    if not value:
+        return False
+    text = value.strip()
+    return bool(re.match(r'^(https?://\S+)$', text))
+
+
+def _find_pemic_url_in_text(value):
+    if not value:
+        return None
+    match = re.search(r'https?://[^\s"\)\]]+', value)
+    if match and _is_pemic_annotation_url(match.group(0)):
+        return match.group(0)
+    return None
+
+
+def _extract_pemic_url_from_book(book):
+    if not book:
+        return None
+
+    candidates = [book.preview_url, book.cover_image]
+    if book.cover_images:
+        candidates.extend(book.cover_images)
+    if _looks_like_url_only_text(book.description):
+        candidates.append(book.description)
+    url = _find_pemic_url_in_text(book.description)
+    if url:
+        candidates.append(url)
+
+    for candidate in candidates:
+        if not candidate:
+            continue
+        if _is_pemic_annotation_url(candidate):
+            return candidate
+    return None
+
+
+def fetch_pemic_description(url):
+    if not _is_pemic_annotation_url(url):
+        return None
+    return _safe_request_text(url)
+
+
+def populate_book_description_from_pemic(book, save=True):
+    if not book:
+        return None
+
+    pemic_url = _extract_pemic_url_from_book(book)
+    if not pemic_url:
+        if book.description and book.description.strip() and not _looks_like_url_only_text(book.description):
+            return book.description
+        return None
+
+    description = fetch_pemic_description(pemic_url)
+    if description and save:
+        book.description = description
+        book.save(update_fields=['description'])
+    return description
 
 
 def _openlibrary_cover_urls_by_isbn(isbn):
