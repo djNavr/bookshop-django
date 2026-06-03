@@ -1,0 +1,62 @@
+{% extends 'base.html' %}
+{% block content %}
+<div class="py-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="p-4 rounded-4 bg-white shadow-sm">
+        <h1 class="h3 mb-3">Kontaktujte nás</h1>
+        <p class="text-muted mb-4">Máte otázku, potřebujete doporučení nebo pomoc s objednávkou? Vyplňte krátký formulář a my se vám ozveme co nejdříve.</p>
+
+        <div class="mb-4">
+          <h5>Rychlé tipy pro dotaz</h5>
+          <ul class="list-unstyled text-muted">
+            <li>✔ Doporučení knihy pro dárkový výběr</li>
+            <li>✔ Stav a doručení objednávky</li>
+            <li>✔ Problém s platbou nebo skladem</li>
+          </ul>
+        </div>
+
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label" for="id_name">Jméno</label>
+              {{ form.name }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="id_email">E-mail</label>
+              {{ form.email }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="id_topic">Téma dotazu</label>
+              {{ form.topic }}
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="id_message">Váš dotaz</label>
+              {{ form.message }}
+            </div>
+            <div class="col-12">
+              <button type="submit" class="btn btn-primary">Odeslat zprávu</button>
+              {% if destination_email %}
+              <small class="text-muted ms-3">Zpráva bude odeslána na: {{ destination_email }}</small>
+              {% else %}
+              <small class="text-muted ms-3">Servisní e-mail není nastaven. Zprávu uložíme interně.</small>
+              {% endif %}
+            </div>
+          </div>
+        </form>
+
+        <div class="mt-4 pt-4 border-top">
+          <h5>Nevyhovuje vám kontakt?</h5>
+          <p class="text-muted mb-3">Vyberte jinou sekci pro rychlý návrat na katalog, doporučené knihy nebo přehled kategorií.</p>
+          <div class="d-flex flex-wrap gap-2">
+            <a href="{% url 'index' %}#catalog" class="btn btn-outline-primary">Katalog</a>
+            <a href="{% url 'index' %}#featured" class="btn btn-outline-primary">Doporučeno</a>
+            <a href="{% url 'categories' %}" class="btn btn-outline-primary">Kategorie</a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

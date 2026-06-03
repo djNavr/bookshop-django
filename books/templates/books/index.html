@@ -1,11 +1,11 @@
 {% extends 'base.html' %}
 {% block content %}
-<section class="hero-section rounded-4 p-5 mb-5 text-white" style="background-image: linear-gradient(135deg, rgba(27, 56, 99, 0.92), rgba(78, 123, 177, 0.92)), url('https://images.unsplash.com/photo-1512820790803-83ca734da794?auto=format&fit=crop&w=1200&q=80'); background-size: cover; background-position: center;">
+<section class="hero-section rounded-4 p-5 mb-5 text-white" style="background-image: linear-gradient(135deg, rgba(27, 56, 99, 0.92), rgba(78, 123, 177, 0.92)), url('https://images.unsplash.com/photo-1516979187457-637abb4f9353?auto=format&fit=crop&w=1200&q=80'); background-size: cover; background-position: center;">
   <div class="row align-items-center">
     <div class="col-lg-7">
-      <span class="badge bg-light text-dark mb-3">Online knihkupectví</span>
-      <h1 class="display-5 fw-bold">Nakupujte nejlepší čtení pro každou knihovnu</h1>
-      <p class="lead text-white-75">Prohlédněte si moderní katalog knih s přesným skladem, jasnými cenami a ručně vybranými doporučeními.</p>
+      <span class="badge bg-light text-dark mb-3">Bestseller nabídka</span>
+      <h1 class="display-5 fw-bold">Knižní svět co ti nabízí fantazii ve světě knih</h1>
+      <p class="lead text-white-75">Knižní svět co ti nabízí fantazii ve světě knih.</p>
       <a href="#catalog" class="btn btn-light btn-lg mt-3">Prohlédnout katalog</a>
     </div>
     <div class="col-lg-5 d-none d-lg-block">
@@ -65,9 +65,9 @@
     {% for book in books %}
     <div class="col">
       <div class="card h-100 shadow-sm border-0 book-card">
-        {% if book.cover_image %}
+        {% if book.primary_image %}
         <a href="/books/{{ book.pk }}/" class="card-image-wrapper d-block overflow-hidden rounded-top-4">
-          <img src="{{ book.cover_image }}" class="card-img-top book-cover" alt="{{ book.title }}" />
+          <img src="{{ book.primary_image }}" class="card-img-top book-cover" alt="{{ book.title }}" />
         </a>
         {% endif %}
         <div class="card-body d-flex flex-column">
@@ -93,29 +93,35 @@
 </section>
 
 <section id="featured" class="mb-5">
-  <div class="row g-4">
-    <div class="col-md-6">
-      <div class="p-4 rounded-4 bg-white shadow-sm h-100">
-        <h3>Proč nakupovat ve FreshBooks?</h3>
-        <p class="text-muted">Čistý, na knihy zaměřený nákupní zážitek s katalogovými daty pro čtenáře i prodejce.</p>
-        <ul class="list-unstyled text-muted mb-0">
-          <li class="mb-2">✔ Ověřená data knih a ceny</li>
-          <li class="mb-2">✔ Snadné prohlížení a rychlá navigace</li>
-          <li>✔ Krásná zobrazení pro každý titul</li>
-        </ul>
-      </div>
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h2 class="h3 mb-1">Doporučené bestsellery</h2>
+      <p class="text-muted mb-0">Vybrané tituly, které si naši čtenáři nejčastěji berou do košíku.</p>
     </div>
-    <div class="col-md-6">
-      <div class="p-4 rounded-4 bg-white shadow-sm h-100">
-        <h3>Zákaznické menu</h3>
-        <p class="text-muted">Rychlé odkazy pro návštěvníky na objevování knih, nové přírůstky a podporu.</p>
-        <div class="d-grid gap-2">
-          <a href="#catalog" class="btn btn-outline-primary">Prozkoumat katalog</a>
-          <a href="#" class="btn btn-outline-primary">Dárkové poukazy</a>
-          <a href="#contact" class="btn btn-outline-primary">Kontaktujte podporu</a>
+    <a href="#catalog" class="btn btn-outline-primary">Zobrazit všechny knihy</a>
+  </div>
+  <div class="row g-4">
+    {% for featured in featured_books %}
+    <div class="col-md-4">
+      <div class="card h-100 shadow-sm border-0">
+        {% if featured.primary_image %}
+        <img src="{{ featured.primary_image }}" class="card-img-top" alt="{{ featured.title }}" />
+        {% endif %}
+        <div class="card-body d-flex flex-column">
+          <h5 class="card-title">{{ featured.title }}</h5>
+          <p class="card-text text-muted mb-2">od {{ featured.author }}</p>
+          <p class="mb-3"><strong>{{ featured.price|floatformat:2 }} {{ featured.currency }}</strong></p>
+          <a href="/books/{{ featured.pk }}/" class="btn btn-primary mt-auto">Detail knihy</a>
         </div>
       </div>
     </div>
+    {% empty %}
+    <div class="col-12">
+      <div class="p-4 rounded-4 bg-white shadow-sm text-center">
+        <p class="mb-0">Žádné doporučené tituly k dispozici právě teď. Prohlédněte si celý katalog.</p>
+      </div>
+    </div>
+    {% endfor %}
   </div>
 </section>
 
@@ -126,7 +132,7 @@
       <p class="text-muted mb-0">Kontaktujte nás pro doporučení, otázky nebo podporu.</p>
     </div>
     <div class="col-md-4 text-md-end mt-3 mt-md-0">
-      <a href="#" class="btn btn-primary">Kontaktujte podporu</a>
+      <a href="{% url 'contact' %}" class="btn btn-primary">Kontaktujte podporu</a>
     </div>
   </div>
 </section>

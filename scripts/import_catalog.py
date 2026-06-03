@@ -14,6 +14,7 @@ os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'myshop.settings')
 django.setup()
 
 from books.models import Book  # noqa: E402
+from books.utils import fetch_book_cover_urls  # noqa: E402
 
 
 def normalize_text(value):
@@ -122,12 +123,21 @@ def import_catalogue(catalogue_path, price_path, stock_path):
             part for part in [row.get('SORTPODNAZEV', ''), row.get('ANOTACE', '')] if part
         )
 
-        cover_image = row.get('PICTURE') or row.get('PICTURE_SMALL') or row.get('PICTURE_FULL') or ''
+        image_candidates = [row.get('PICTURE'), row.get('PICTURE_SMALL'), row.get('PICTURE_FULL')]
+        cover_image = next((img for img in image_candidates if img), '')
+        cover_images = [img for img in image_candidates if img]
+        publisher = row.get('NAKLADATELSTVI') or row.get('VYDAVATELSTVI') or row.get('NAKLADATEL') or ''
         ean = row.get('EAN', '')
         isbn = row.get('ISBN', '')
         dostupnost = row.get('DOSTUPNOST', '')
         book_type = row.get('SORTDRUH', '')
         category = row.get('SKUPNAZEV', '')
+
+        if not cover_images:
+            fallback_images = fetch_book_cover_urls(Book(title=title, author=author, isbn=isbn, ean=ean))
+            if fallback_images:
+                cover_images = fallback_images
+                cover_image = cover_images[0]
 
         price_row = prices.get(sortkod, {})
         price_value = normalize_decimal(price_row.get('PRODCENA') or price_row.get('AKCECENA') or row.get('CENA'))
@@ -156,6 +166,8 @@ def import_catalogue(catalogue_path, price_path, stock_path):
             'price': price_value,
             'currency': currency,
             'cover_image': cover_image,
+            'cover_images': cover_images,
+            'publisher': publisher,
             'ean': ean,
             'isbn': isbn,
             'book_type': book_type,

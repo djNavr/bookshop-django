@@ -10,6 +10,8 @@ class Book(models.Model):
     description = models.TextField(blank=True)
     price = models.DecimalField(max_digits=8, decimal_places=2, validators=[MinValueValidator(0.01)])
     cover_image = models.URLField(blank=True)
+    cover_images = models.JSONField(blank=True, null=True, default=list)
+    publisher = models.CharField(max_length=255, blank=True)
     ean = models.CharField(max_length=32, blank=True)
     isbn = models.CharField(max_length=32, blank=True)
     book_type = models.CharField(max_length=128, blank=True)
@@ -27,6 +29,33 @@ class Book(models.Model):
         return cls.objects.filter(
             models.Q(sortkod=code) | models.Q(ean=code) | models.Q(isbn=code)
         ).first()
+
+    @property
+    def image_gallery(self):
+        images = []
+        if self.cover_image:
+            images.append(self.cover_image)
+        if self.cover_images:
+            for image in self.cover_images:
+                if image and image not in images:
+                    images.append(image)
+        return images
+
+    @property
+    def primary_image(self):
+        gallery = self.image_gallery
+        return gallery[0] if gallery else ''
+
+    def publisher_image_suggestions(self):
+        if not self.publisher:
+            return []
+        suggestions = []
+        related_books = Book.objects.filter(publisher__iexact=self.publisher).exclude(pk=self.pk)
+        for related in related_books:
+            for image in related.image_gallery:
+                if image and image not in suggestions:
+                    suggestions.append(image)
+        return suggestions[:4]
 
     def __str__(self):
         return f"{self.title} — {self.author}"

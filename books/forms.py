@@ -36,6 +36,27 @@ class CheckoutForm(forms.Form):
         return f"{self.cleaned_data['street']}\n{self.cleaned_data['postal_code']} {self.cleaned_data['city']}\n{self.cleaned_data['country']}"
 
 
+class ContactForm(forms.Form):
+    TOPIC_CHOICES = [
+        ('recommendation', 'Doporučení knihy'),
+        ('order_status', 'Stav objednávky'),
+        ('technical', 'Technická podpora'),
+        ('general', 'Obecný dotaz'),
+    ]
+
+    name = forms.CharField(max_length=255, widget=forms.TextInput(attrs={'class': 'form-control'}), label='Jméno')
+    email = forms.EmailField(widget=forms.EmailInput(attrs={'class': 'form-control'}), label='E-mail')
+    topic = forms.ChoiceField(choices=TOPIC_CHOICES, widget=forms.Select(attrs={'class': 'form-select'}), label='O čem chcete mluvit')
+    message = forms.CharField(
+        widget=forms.Textarea(attrs={
+            'class': 'form-control',
+            'rows': 6,
+            'placeholder': 'Napište nám svůj dotaz. Například: Rád/a bych doporučení na nové fantasy, které je vhodné pro dárkový výběr.'
+        }),
+        label='Váš dotaz',
+    )
+
+
 from .models import ShopConfig
 
 

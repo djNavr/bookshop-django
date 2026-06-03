@@ -1,0 +1,9 @@
+{% extends "admin/change_list.html" %}
+{% load i18n %}
+
+{% block object-tools-items %}
+  {{ block.super }}
+  <li>
+    <a href="{% url 'admin:books_book_fill_missing_cover_images' %}" class="addlink">Doplnit chybějící obalové obrázky</a>
+  </li>
+{% endblock %}

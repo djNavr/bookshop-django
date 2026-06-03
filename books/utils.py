@@ -52,6 +52,142 @@ def verify_address(street: str, city: str, postal_code: str, country: str) -> di
         }
 
 
+def _normalize_image_url(url):
+    if not url:
+        return None
+    return url.strip()
+
+
+def _safe_request_json(url, params=None, headers=None):
+    try:
+        response = requests.get(url, params=params or {}, headers=headers or {}, timeout=10)
+        response.raise_for_status()
+        return response.json()
+    except requests.RequestException:
+        return None
+
+
+def _openlibrary_cover_urls_by_isbn(isbn):
+    if not isbn:
+        return []
+    url = 'https://openlibrary.org/api/books'
+    params = {
+        'bibkeys': f'ISBN:{isbn}',
+        'format': 'json',
+        'jscmd': 'data',
+    }
+    data = _safe_request_json(url, params=params)
+    if not data:
+        return []
+
+    record = data.get(f'ISBN:{isbn}', {})
+    cover = record.get('cover', {})
+    urls = [cover.get(size) for size in ('large', 'medium', 'small') if cover.get(size)]
+    return [url for url in map(_normalize_image_url, urls) if url]
+
+
+def _openlibrary_search_cover_urls(title, author=None):
+    if not title:
+        return []
+    query = title
+    if author:
+        query = f'{query} {author}'
+    url = 'https://openlibrary.org/search.json'
+    params = {'q': query, 'limit': 8}
+    data = _safe_request_json(url, params=params)
+    if not data:
+        return []
+
+    urls = []
+    for doc in data.get('docs', []):
+        cover_id = doc.get('cover_i')
+        if cover_id:
+            urls.append(f'https://covers.openlibrary.org/b/id/{cover_id}-L.jpg')
+        isbns = doc.get('isbn') or []
+        for isbn in isbns[:2]:
+            urls.append(f'https://covers.openlibrary.org/b/isbn/{isbn}-L.jpg')
+        edition_keys = doc.get('edition_key') or []
+        if edition_keys:
+            urls.append(f'https://covers.openlibrary.org/b/olid/{edition_keys[0]}-L.jpg')
+    return [url for url in map(_normalize_image_url, dict.fromkeys(urls)) if url]
+
+
+def _google_books_cover_urls(isbn=None, title=None, author=None):
+    queries = []
+    if isbn:
+        queries.append(f'isbn:{isbn}')
+    if title and author:
+        queries.append(f'intitle:{title}+inauthor:{author}')
+    elif title:
+        queries.append(f'intitle:{title}')
+
+    api_url = 'https://www.googleapis.com/books/v1/volumes'
+    api_key = getattr(settings, 'GOOGLE_BOOKS_API_KEY', None)
+    headers = {'Accept': 'application/json'}
+    urls = []
+
+    for query in queries:
+        params = {'q': query}
+        if api_key:
+            params['key'] = api_key
+        data = _safe_request_json(api_url, params=params, headers=headers)
+        if not data:
+            continue
+        for item in data.get('items', [])[:5]:
+            image_links = item.get('volumeInfo', {}).get('imageLinks', {})
+            for key in ('extraLarge', 'large', 'medium', 'thumbnail', 'smallThumbnail'):
+                if image_links.get(key):
+                    urls.append(image_links.get(key))
+        if urls:
+            break
+
+    return [url for url in map(_normalize_image_url, dict.fromkeys(urls)) if url]
+
+
+def fetch_book_cover_urls(book):
+    if not book:
+        return []
+
+    identifiers = []
+    if book.isbn:
+        identifiers.append(book.isbn)
+    if book.ean and book.ean != book.isbn:
+        identifiers.append(book.ean)
+
+    urls = []
+    for identifier in identifiers:
+        urls.extend(_openlibrary_cover_urls_by_isbn(identifier))
+        if urls:
+            break
+
+    if not urls:
+        urls.extend(_openlibrary_search_cover_urls(book.title, book.author))
+
+    if not urls:
+        urls.extend(_google_books_cover_urls(isbn=book.isbn or book.ean, title=book.title, author=book.author))
+
+    return [url for url in map(_normalize_image_url, dict.fromkeys(urls)) if url]
+
+
+def populate_book_cover_images(book, save=True):
+    if not book:
+        return []
+
+    if book.primary_image:
+        return book.image_gallery
+
+    urls = fetch_book_cover_urls(book)
+    if not urls:
+        return []
+
+    book.cover_images = urls
+    if not book.cover_image:
+        book.cover_image = urls[0]
+    if save:
+        book.save(update_fields=['cover_image', 'cover_images'])
+    return urls
+
+
 def send_zero_price_report():
     config = ShopConfig.get_solo()
     email = config.service_email or getattr(settings, 'SERVICE_EMAIL', None)

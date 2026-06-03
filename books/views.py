@@ -9,7 +9,7 @@ from django.core.mail import send_mail
 from django.db.models import Count
 from django.shortcuts import render, get_object_or_404, redirect
 
-from .forms import CheckoutForm, RegistrationForm, ShopConfigForm
+from .forms import CheckoutForm, ContactForm, RegistrationForm, ShopConfigForm
 from .models import Book, Order, OrderItem, ShopConfig
 from .utils import verify_address
 
@@ -72,8 +72,14 @@ def index(request):
         book_types = book_types.filter(price__gt=0)
     book_types = book_types.values_list('book_type', flat=True).distinct().order_by('book_type')
 
+    featured_books = Book.objects.filter(available=True)
+    if config.hide_zero_price_products:
+        featured_books = featured_books.filter(price__gt=0)
+    featured_books = featured_books.order_by('-stock', '-created_at')[:3]
+
     return render(request, 'books/index.html', {
         'books': books,
+        'featured_books': featured_books,
         'book_types': [bt for bt in book_types if bt],
         'selected_filters': {
             'book_type': book_type,
@@ -200,6 +206,32 @@ def checkout(request):
 def checkout_success(request, order_id):
     order = get_object_or_404(Order, pk=order_id)
     return render(request, 'books/checkout_success.html', {'order': order})
+
+
+def contact(request):
+    config = _get_shop_config()
+    destination_email = config.service_email or getattr(settings, 'DEFAULT_FROM_EMAIL', None)
+    if request.method == 'POST':
+        form = ContactForm(request.POST)
+        if form.is_valid():
+            if destination_email:
+                send_mail(
+                    f"Kontakt: {dict(form.fields['topic'].choices).get(form.cleaned_data['topic'], 'Dotaz')}",
+                    f"Jméno: {form.cleaned_data['name']}\nE-mail: {form.cleaned_data['email']}\n\n{form.cleaned_data['message']}",
+                    getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@freshbooks.local'),
+                    [destination_email],
+                    fail_silently=False,
+                )
+                messages.success(request, 'Děkujeme, váš dotaz byl odeslán. Odpověď pošleme na zadaný e-mail.')
+                return redirect('contact')
+            messages.warning(request, 'Zpráva byla připravena, ale není nastaven odpovědní email administrace.')
+    else:
+        form = ContactForm()
+
+    return render(request, 'books/contact.html', {
+        'form': form,
+        'destination_email': destination_email,
+    })
 
 
 def _get_category_icon(label):

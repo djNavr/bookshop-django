@@ -3,8 +3,26 @@
 <div class="row g-5">
   <div class="col-lg-5">
     <div class="card border-0 shadow-sm rounded-4 overflow-hidden">
-      {% if book.cover_image %}
-      <img src="{{ book.cover_image }}" class="img-fluid" alt="{{ book.title }}" />
+      {% if book.image_gallery|length > 1 %}
+      <div id="imageCarousel" class="carousel slide" data-bs-ride="carousel">
+        <div class="carousel-inner">
+          {% for image in book.image_gallery %}
+          <div class="carousel-item {% if forloop.first %}active{% endif %}">
+            <img src="{{ image }}" class="d-block w-100" alt="{{ book.title }}" />
+          </div>
+          {% endfor %}
+        </div>
+        <button class="carousel-control-prev" type="button" data-bs-target="#imageCarousel" data-bs-slide="prev">
+          <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+          <span class="visually-hidden">Předchozí</span>
+        </button>
+        <button class="carousel-control-next" type="button" data-bs-target="#imageCarousel" data-bs-slide="next">
+          <span class="carousel-control-next-icon" aria-hidden="true"></span>
+          <span class="visually-hidden">Další</span>
+        </button>
+      </div>
+      {% elif book.primary_image %}
+      <img src="{{ book.primary_image }}" class="img-fluid" alt="{{ book.title }}" />
       {% endif %}
       <div class="card-body p-4">
         <h5 class="card-title">{{ book.title }}</h5>
@@ -49,6 +67,22 @@
       <div class="mt-3 p-3 bg-light rounded-4 border">
         <strong>Kategorie</strong>
         <div class="mt-2"><span class="badge bg-secondary">{{ book.category }}</span></div>
+      </div>
+      {% endif %}
+      {% if book.publisher %}
+      <div class="mt-3 p-3 bg-light rounded-4 border">
+        <strong>Nakladatelství</strong>
+        <div class="mt-2"><span class="badge bg-secondary">{{ book.publisher }}</span></div>
+      </div>
+      {% endif %}
+      {% if book.publisher_image_suggestions %}
+      <div class="mt-4 p-3 bg-light rounded-4 border">
+        <strong>Další grafika od nakladatelství</strong>
+        <div class="d-flex flex-wrap gap-3 mt-3">
+          {% for image in book.publisher_image_suggestions %}
+          <img src="{{ image }}" class="rounded-3" style="width: 120px; height: 180px; object-fit: cover;" alt="Další obrázek" />
+          {% endfor %}
+        </div>
       </div>
       {% endif %}
     </div>

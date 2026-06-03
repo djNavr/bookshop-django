@@ -20,5 +20,6 @@ urlpatterns = [
     path('accounts/logout/', auth_views.LogoutView.as_view(next_page='index'), name='logout'),
     path('admin/settings/', book_views.admin_settings, name='admin_settings'),
     path('admin/zero-price-report/', book_views.zero_price_report, name='zero_price_report'),
+    path('contact/', book_views.contact, name='contact'),
     path('graphql', GraphQLView.as_view(graphiql=True)),
 ]

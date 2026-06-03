@@ -17,10 +17,10 @@
         <div class="collapse navbar-collapse" id="mainNav">
           <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
             <li class="nav-item"><a class="nav-link active" aria-current="page" href="/">Domů</a></li>
-            <li class="nav-item"><a class="nav-link" href="#catalog">Katalog</a></li>
-            <li class="nav-item"><a class="nav-link" href="#featured">Doporučeno</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'index' %}#catalog">Katalog</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'index' %}#featured">Doporučeno</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'categories' %}">Kategorie</a></li>
-            <li class="nav-item"><a class="nav-link" href="#contact">Kontakt</a></li>
+            <li class="nav-item"><a class="nav-link" href="{% url 'contact' %}">Kontakt</a></li>
             <li class="nav-item"><a class="nav-link" href="/cart/">Košík</a></li>
             {% if user.is_staff %}
             <li class="nav-item"><a class="nav-link" href="{% url 'admin_settings' %}">Správa eshopu</a></li>
@@ -55,7 +55,7 @@
         <div>
           <a href="#" class="text-muted me-3">O nás</a>
           <a href="#" class="text-muted me-3">Ochrana osobních údajů</a>
-          <a href="#contact" class="text-muted">Kontakt</a>
+          <a href="{% url 'contact' %}" class="text-muted">Kontakt</a>
         </div>
       </div>
     </footer>
