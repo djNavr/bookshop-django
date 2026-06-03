@@ -43,9 +43,10 @@ python manage.py runserver
 
 Open http://127.0.0.1:8000 to view the shop and http://127.0.0.1:8000/graphql for GraphiQL.
 PostgreSQL via Docker
-- Use `docker-compose up -d` to start a local PostgreSQL service.
 - Copy `.env.example` to `.env` and adjust credentials if needed.
-- Run `DB_ENGINE=postgresql python manage.py migrate` to migrate the Postgres database.
+- Run `docker-compose up --build -d` to start PostgreSQL and the Django web service.
+- Run `docker-compose exec web python manage.py migrate` to apply migrations.
+- Run `docker-compose exec web python manage.py createsuperuser` to create an admin account.
 Notes
 - Uses SQLite for simplicity in development. For production, switch to PostgreSQL and configure static files.
 - PostgreSQL support is already prepared in `myshop/settings.py` via environment variables such as `DB_ENGINE=postgresql`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT` or `DATABASE_URL`.
