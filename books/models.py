@@ -219,3 +219,20 @@ class Review(models.Model):
 
     def __str__(self):
         return f"Recenze {self.book.title} od {self.name}"
+
+
+class AbandonedCart(models.Model):
+    """Tracks shopping carts that were not converted into orders."""
+    session_key = models.CharField(max_length=40, db_index=True)
+    email = models.EmailField(blank=True)
+    cart_data = models.JSONField(default=dict)  # {book_pk: quantity}
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    reminder_sent_at = models.DateTimeField(null=True, blank=True)
+    converted = models.BooleanField(default=False)  # True after checkout
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"AbandonedCart {self.session_key[:8]} ({self.email or 'anon'}) @ {self.updated_at:%Y-%m-%d %H:%M}"

@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -71,9 +72,32 @@ ADDRESS_VERIFICATION_ENABLED = True
 ADDRESS_VERIFICATION_API_URL = 'mock'
 ADDRESS_VERIFICATION_API_KEY = ''
 
-DEFAULT_FROM_EMAIL = 'noreply@freshbooks.local'
-SERVICE_EMAIL = ''
-EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'info@naboknihy.cz')
+SERVICE_EMAIL = os.environ.get('SERVICE_EMAIL', 'info@naboknihy.cz')
+
+# Email backend — use SMTP relay (Postfix on server) or console in dev
+if os.environ.get('EMAIL_HOST'):
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = os.environ.get('EMAIL_HOST', 'localhost')
+    EMAIL_PORT = int(os.environ.get('EMAIL_PORT', '25'))
+    EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'False') == 'True'
+    EMAIL_USE_SSL = os.environ.get('EMAIL_USE_SSL', 'False') == 'True'
+    EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', '')
+    EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')
+else:
+    # Local dev: print to console; on server Postfix listens on 127.0.0.1:25
+    EMAIL_BACKEND = os.environ.get(
+        'EMAIL_BACKEND',
+        'django.core.mail.backends.smtp.EmailBackend'
+        if os.environ.get('DJANGO_ENV') == 'production'
+        else 'django.core.mail.backends.console.EmailBackend'
+    )
+    EMAIL_HOST = 'localhost'
+    EMAIL_PORT = 25
+    EMAIL_USE_TLS = False
+    EMAIL_USE_SSL = False
+    EMAIL_HOST_USER = ''
+    EMAIL_HOST_PASSWORD = ''
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 

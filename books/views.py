@@ -11,7 +11,7 @@ from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
 
 from .forms import CheckoutForm, ContactForm, RegistrationForm, ReviewForm, ShopConfigForm
-from .models import BlogPost, Book, Order, OrderItem, Review, ShopConfig
+from .models import AbandonedCart, BlogPost, Book, Order, OrderItem, Review, ShopConfig
 from .utils import populate_book_description_from_pemic, verify_address
 
 
@@ -249,6 +249,28 @@ def register(request):
     return render(request, 'books/register.html', {'form': form})
 
 
+def _track_abandoned_cart(request):
+    """Upsert AbandonedCart record for the current session."""
+    cart = request.session.get('cart', {})
+    if not cart:
+        return
+    session_key = request.session.session_key
+    if not session_key:
+        request.session.create()
+        session_key = request.session.session_key
+    email = ''
+    if request.user.is_authenticated:
+        email = request.user.email
+    AbandonedCart.objects.update_or_create(
+        session_key=session_key,
+        defaults={
+            'email': email,
+            'cart_data': cart,
+            'converted': False,
+        },
+    )
+
+
 def cart_add(request, pk):
     book = get_object_or_404(Book, pk=pk)
     if book.price <= 0:
@@ -261,6 +283,7 @@ def cart_add(request, pk):
     cart = request.session.get('cart', {})
     cart[str(pk)] = cart.get(str(pk), 0) + 1
     request.session['cart'] = cart
+    _track_abandoned_cart(request)
     messages.success(request, f'Přidáno do košíku: {book.title}')
     return redirect('cart_view')
 
@@ -331,6 +354,10 @@ def checkout(request):
                     book.save()
 
                 request.session['cart'] = {}
+                # Mark abandoned cart as converted
+                session_key = request.session.session_key
+                if session_key:
+                    AbandonedCart.objects.filter(session_key=session_key).update(converted=True)
                 messages.success(request, 'Objednávka byla přijata. Děkujeme za nákup!')
                 return redirect('checkout_success', order_id=order.pk)
     else:
@@ -353,6 +380,22 @@ def checkout(request):
 def checkout_success(request, order_id):
     order = get_object_or_404(Order, pk=order_id)
     return render(request, 'books/checkout_success.html', {'order': order})
+
+
+def restore_cart(request, token):
+    """Restore a cart from an abandoned-cart reminder link."""
+    import hashlib
+    from django.utils import timezone
+    try:
+        ac = AbandonedCart.objects.get(pk=token, converted=False)
+    except (AbandonedCart.DoesNotExist, ValueError):
+        messages.warning(request, 'Odkaz na košík je neplatný nebo vypršel.')
+        return redirect('index')
+    if ac.cart_data:
+        request.session['cart'] = ac.cart_data
+        request.session.modified = True
+        messages.info(request, 'Váš košík byl obnoven. Dokončete prosím objednávku.')
+    return redirect('cart_view')
 
 
 def contact(request):

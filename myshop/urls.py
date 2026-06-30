@@ -26,6 +26,7 @@ urlpatterns = [
     path('admin/settings/', book_views.admin_settings, name='admin_settings'),
     path('admin/zero-price-report/', book_views.zero_price_report, name='zero_price_report'),
     path('contact/', book_views.contact, name='contact'),
+    path('cart/restore/<int:token>/', book_views.restore_cart, name='restore_cart'),
     path('graphql', GraphQLView.as_view(graphiql=True)),
 ]
 
