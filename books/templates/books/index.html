@@ -110,13 +110,39 @@
             <span class="badge bg-secondary">Není skladem</span>
             {% endif %}
           </div>
-          <a href="/books/{{ book.pk }}/" class="btn btn-primary mt-auto">Zobrazit detaily</a>
+          <div class="mt-auto d-grid gap-2">
+            <a href="/books/{{ book.pk }}/" class="btn btn-primary">Zobrazit detaily</a>
+            <form method="post" action="{% url 'cart_add' book.pk %}">
+              {% csrf_token %}
+              <input type="hidden" name="next" value="{{ request.get_full_path }}" />
+              <input type="hidden" name="prompt_after_add" value="1" />
+              <button type="submit" class="btn btn-outline-primary w-100">Koupit</button>
+            </form>
+          </div>
         </div>
       </div>
     </div>
     {% endfor %}
   </div>
 </section>
+
+<div class="modal fade" id="addedToCartModal" tabindex="-1" aria-labelledby="addedToCartModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content rounded-4 border-0 shadow">
+      <div class="modal-header border-0 pb-0">
+        <h5 class="modal-title" id="addedToCartModalLabel">Produkt byl přidán do košíku</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        Chcete pokračovat v nákupu nebo přejít rovnou k objednávce?
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Pokračovat v nákupu</button>
+        <a href="{% url 'checkout' %}" class="btn btn-primary">Rovnou koupit</a>
+      </div>
+    </div>
+  </div>
+</div>
 
 <section id="featured" class="mb-5">
   <div class="d-flex justify-content-between align-items-center mb-4">
@@ -211,6 +237,24 @@
       suggestions.classList.add('d-none');
     }
   });
+})();
+</script>
+
+<script>
+(function() {
+  const modalElement = document.getElementById('addedToCartModal');
+  if (!modalElement || typeof bootstrap === 'undefined') return;
+
+  const params = new URLSearchParams(window.location.search);
+  if (params.get('added_to_cart') !== '1') return;
+
+  const modal = new bootstrap.Modal(modalElement);
+  modal.show();
+
+  params.delete('added_to_cart');
+  const nextQuery = params.toString();
+  const nextUrl = `${window.location.pathname}${nextQuery ? `?${nextQuery}` : ''}${window.location.hash || ''}`;
+  window.history.replaceState({}, '', nextUrl);
 })();
 </script>
 {% endblock %}

@@ -5,6 +5,10 @@ from django.urls import path, reverse
 from .models import Book, BlogPost, Order, OrderItem, Review, ShopConfig
 from .utils import populate_book_cover_images, populate_book_description_from_pemic
 
+admin.site.site_header = 'Správa NABO Knihy'
+admin.site.site_title = 'NABO Knihy Admin'
+admin.site.index_title = 'Administrace e-shopu'
+
 
 @admin.register(Book)
 class BookAdmin(admin.ModelAdmin):
@@ -86,7 +90,14 @@ class OrderItemInline(admin.TabularInline):
 class ShopConfigAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {
-            'fields': ('service_email', 'shop_name', 'maintenance_mode', 'hide_zero_price_products')
+            'fields': (
+                'sender_email',
+                'service_email',
+                'shop_name',
+                'free_shipping_threshold',
+                'maintenance_mode',
+                'hide_zero_price_products',
+            )
         }),
     )
     readonly_fields = ('id',)
@@ -94,12 +105,39 @@ class ShopConfigAdmin(admin.ModelAdmin):
 
 @admin.register(Order)
 class OrderAdmin(admin.ModelAdmin):
-    list_display = ('pk', 'external_order_id', 'source_system', 'payment_method', 'user', 'customer_name', 'email', 'total_price', 'status', 'created_at')
+    list_display = (
+        'pk', 'external_order_id', 'source_system', 'payment_method', 'payment_status',
+        'shipping_method', 'shipping_status', 'customer_name', 'email', 'total_price', 'status', 'created_at'
+    )
     readonly_fields = ('total_price', 'created_at')
-    list_filter = ('status', 'created_at', 'source_system', 'payment_method')
-    search_fields = ('external_order_id', 'customer_name', 'email', 'user__username')
+    list_filter = ('status', 'created_at', 'source_system', 'payment_method', 'payment_status', 'shipping_method', 'shipping_status')
+    search_fields = (
+        'external_order_id', 'customer_name', 'email', 'user__username',
+        'payment_reference', 'payment_transaction_id', 'shipping_tracking_code', 'pickup_point_name', 'pickup_point_code'
+    )
     actions = ['mark_orders_cancelled']
     inlines = [OrderItemInline]
+
+    fieldsets = (
+        ('Objednávka', {
+            'fields': ('user', 'customer_name', 'email', 'address', 'total_price', 'status', 'created_at')
+        }),
+        ('Platba', {
+            'fields': (
+                'payment_method', 'payment_status', 'payment_code', 'payment_reference',
+                'payment_transaction_id', 'paid_at', 'payment_details'
+            )
+        }),
+        ('Doprava', {
+            'fields': (
+                'shipping_method', 'shipping_status', 'shipping_code', 'shipping_tracking_code',
+                'shipping_tracking_url', 'pickup_point_name', 'pickup_point_code', 'shipping_details'
+            )
+        }),
+        ('Integrace', {
+            'fields': ('external_order_id', 'source_system')
+        }),
+    )
 
     def mark_orders_cancelled(self, request, queryset):
         updated = queryset.update(status=Order.STATUS_CANCELLED)

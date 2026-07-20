@@ -271,6 +271,7 @@ def populate_book_cover_images(book, save=True):
 def send_zero_price_report():
     config = ShopConfig.get_solo()
     email = config.service_email or getattr(settings, 'SERVICE_EMAIL', None)
+    sender_email = config.sender_email or getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@freshbooks.local')
     if not email:
         return 0, None
 
@@ -286,7 +287,7 @@ def send_zero_price_report():
     send_mail(
         'Denní report: nulová cena u produktů',
         message,
-        getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@freshbooks.local'),
+        sender_email,
         [email],
         fail_silently=False,
     )

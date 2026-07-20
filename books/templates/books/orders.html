@@ -17,6 +17,10 @@
         <div class="text-muted">{{ order.customer_name }}</div>
         <div class="fw-semibold">{{ order.total_price|floatformat:2 }} CZK</div>
       </div>
+      <div class="d-flex justify-content-between mt-2 small text-muted">
+        <div>{{ order.get_payment_method_display }} / {{ order.get_shipping_method_display }}</div>
+        <div>{{ order.get_payment_status_display }}</div>
+      </div>
     </a>
     {% endfor %}
   </div>

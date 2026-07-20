@@ -98,12 +98,23 @@ class Book(models.Model):
 
 class ShopConfig(models.Model):
     id = models.PositiveSmallIntegerField(primary_key=True, default=1, editable=False)
+    sender_email = models.EmailField(
+        blank=True,
+        null=True,
+        help_text='E-mailová adresa odesílatele pro systémové zprávy.',
+    )
     service_email = models.EmailField(
         blank=True,
         null=True,
         help_text='Email pro denní report produktů s nulovou cenou nebo chybnou konfigurací.',
     )
     shop_name = models.CharField(max_length=128, default='FreshBooks')
+    free_shipping_threshold = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        default=1500,
+        help_text='Minimální hodnota objednávky pro dopravu zdarma (v CZK).',
+    )
     maintenance_mode = models.BooleanField(default=False)
     hide_zero_price_products = models.BooleanField(default=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -120,6 +131,16 @@ class ShopConfig(models.Model):
         obj, _ = cls.objects.get_or_create(pk=1)
         return obj
 
+    @classmethod
+    def get_from_email(cls):
+        config = cls.get_solo()
+        return config.sender_email or getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@freshbooks.local')
+
+    @classmethod
+    def get_free_shipping_threshold(cls):
+        config = cls.get_solo()
+        return config.free_shipping_threshold
+
 
 class Order(models.Model):
     STATUS_NEW = 'new'
@@ -132,6 +153,29 @@ class Order(models.Model):
     PAYMENT_METHOD_QR = 'qr_payment'
     PAYMENT_METHOD_BENEFIT = 'benefit_card'
     PAYMENT_METHOD_INVOICE = 'invoice'
+    PAYMENT_METHOD_GOPAY = 'gopay'
+    PAYMENT_METHOD_COMGATE = 'comgate'
+    PAYMENT_METHOD_STRIPE = 'stripe'
+    PAYMENT_METHOD_COD = 'cash_on_delivery'
+
+    SHIPPING_METHOD_ZASILKOVNA = 'zasilkovna'
+    SHIPPING_METHOD_PPL = 'ppl'
+    SHIPPING_METHOD_BALIKOVNA = 'balikovna'
+    SHIPPING_METHOD_GLS = 'gls'
+    SHIPPING_METHOD_EXTERNAL = 'external_dispatch'
+
+    PAYMENT_STATUS_PENDING = 'pending'
+    PAYMENT_STATUS_AUTHORIZED = 'authorized'
+    PAYMENT_STATUS_PAID = 'paid'
+    PAYMENT_STATUS_FAILED = 'failed'
+    PAYMENT_STATUS_REFUNDED = 'refunded'
+    PAYMENT_STATUS_MANUAL = 'manual_review'
+
+    SHIPPING_STATUS_PENDING = 'pending'
+    SHIPPING_STATUS_PREPARING = 'preparing'
+    SHIPPING_STATUS_HANDED_OVER = 'handed_over'
+    SHIPPING_STATUS_DELIVERED = 'delivered'
+    SHIPPING_STATUS_CANCELLED = 'cancelled'
 
     ORDER_STATUS_CHOICES = [
         (STATUS_NEW, 'Nová objednávka'),
@@ -146,6 +190,35 @@ class Order(models.Model):
         (PAYMENT_METHOD_QR, 'Platba přes QR'),
         (PAYMENT_METHOD_BENEFIT, 'Benefitní karta'),
         (PAYMENT_METHOD_INVOICE, 'Platba na fakturu'),
+        (PAYMENT_METHOD_GOPAY, 'GoPay'),
+        (PAYMENT_METHOD_COMGATE, 'Comgate'),
+        (PAYMENT_METHOD_STRIPE, 'Stripe'),
+        (PAYMENT_METHOD_COD, 'Dobírka'),
+    ]
+
+    SHIPPING_METHOD_CHOICES = [
+        (SHIPPING_METHOD_ZASILKOVNA, 'Zásilkovna - výdejní místo'),
+        (SHIPPING_METHOD_PPL, 'PPL kurýr'),
+        (SHIPPING_METHOD_BALIKOVNA, 'Balíkovna'),
+        (SHIPPING_METHOD_GLS, 'GLS kurýr'),
+        (SHIPPING_METHOD_EXTERNAL, 'Externí zajištění dopravy'),
+    ]
+
+    PAYMENT_STATUS_CHOICES = [
+        (PAYMENT_STATUS_PENDING, 'Čeká na platbu'),
+        (PAYMENT_STATUS_AUTHORIZED, 'Platba autorizována'),
+        (PAYMENT_STATUS_PAID, 'Zaplaceno'),
+        (PAYMENT_STATUS_FAILED, 'Platba selhala'),
+        (PAYMENT_STATUS_REFUNDED, 'Vráceno'),
+        (PAYMENT_STATUS_MANUAL, 'Ruční kontrola'),
+    ]
+
+    SHIPPING_STATUS_CHOICES = [
+        (SHIPPING_STATUS_PENDING, 'Čeká na zpracování'),
+        (SHIPPING_STATUS_PREPARING, 'Připravuje se'),
+        (SHIPPING_STATUS_HANDED_OVER, 'Předáno dopravci'),
+        (SHIPPING_STATUS_DELIVERED, 'Doručeno'),
+        (SHIPPING_STATUS_CANCELLED, 'Doprava zrušena'),
     ]
 
     user = models.ForeignKey(
@@ -156,11 +229,29 @@ class Order(models.Model):
         related_name='orders',
     )
     customer_name = models.CharField(max_length=255)
+    is_company_order = models.BooleanField(default=False)
+    company_name = models.CharField(max_length=255, blank=True)
+    company_id = models.CharField(max_length=32, blank=True)
+    vat_id = models.CharField(max_length=32, blank=True)
     external_order_id = models.CharField(max_length=128, blank=True, null=True, unique=True)
     source_system = models.CharField(max_length=64, blank=True, null=True)
     payment_method = models.CharField(max_length=32, choices=PAYMENT_METHOD_CHOICES, blank=True)
+    payment_status = models.CharField(max_length=20, choices=PAYMENT_STATUS_CHOICES, default=PAYMENT_STATUS_PENDING)
     payment_code = models.CharField(max_length=64, blank=True, null=True)
+    payment_reference = models.CharField(max_length=128, blank=True, null=True)
+    payment_transaction_id = models.CharField(max_length=128, blank=True, null=True)
+    payment_details = models.TextField(blank=True)
+    paid_at = models.DateTimeField(blank=True, null=True)
+    shipping_method = models.CharField(max_length=32, choices=SHIPPING_METHOD_CHOICES, blank=True)
     shipping_code = models.CharField(max_length=64, blank=True, null=True)
+    shipping_status = models.CharField(max_length=20, choices=SHIPPING_STATUS_CHOICES, default=SHIPPING_STATUS_PENDING)
+    shipping_tracking_code = models.CharField(max_length=128, blank=True, null=True)
+    shipping_tracking_url = models.URLField(blank=True)
+    pickup_point_code = models.CharField(max_length=128, blank=True, null=True)
+    pickup_point_name = models.CharField(max_length=255, blank=True, null=True)
+    shipping_details = models.TextField(blank=True)
+    terms_accepted = models.BooleanField(default=False)
+    terms_accepted_at = models.DateTimeField(blank=True, null=True)
     email = models.EmailField(blank=True)
     address = models.TextField()
     total_price = models.DecimalField(max_digits=10, decimal_places=2)

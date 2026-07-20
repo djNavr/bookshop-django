@@ -1,16 +1,31 @@
 from decimal import Decimal
+import os
+import time
+from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from django.conf import settings
 from django.contrib import messages
 from django.contrib.admin.views.decorators import staff_member_required
-from django.contrib.auth import login
+from django.contrib.auth import get_user_model, login
 from django.contrib.auth.decorators import login_required
 from django.core.mail import send_mail
 from django.db.models import Count, Q
 from django.http import JsonResponse
 from django.shortcuts import render, get_object_or_404, redirect
+from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
+import requests
 
-from .forms import CheckoutForm, ContactForm, RegistrationForm, ReviewForm, ShopConfigForm
+from .forms import (
+    CheckoutAddressForm,
+    CheckoutConfirmForm,
+    CheckoutPaymentForm,
+    CheckoutShippingForm,
+    ContactForm,
+    RegistrationForm,
+    ReviewForm,
+    ShopConfigForm,
+)
 from .models import AbandonedCart, BlogPost, Book, Order, OrderItem, Review, ShopConfig
 from .utils import populate_book_description_from_pemic, verify_address
 
@@ -41,8 +56,34 @@ def _get_cart_items(request):
     return items, total
 
 
-FREE_SHIPPING_THRESHOLD = 1500
 WISHLIST_SESSION_KEY = 'wishlist'
+ZASILKOVNA_CACHE_TTL_SECONDS = 3600
+_zasilkovna_branch_cache = {'fetched_at': 0, 'items': []}
+CHECKOUT_DRAFT_SESSION_KEY = 'checkout_draft'
+CHECKOUT_STEPS = (1, 2, 3, 4)
+
+
+def _get_checkout_step(raw_step):
+    try:
+        step = int(raw_step)
+    except (TypeError, ValueError):
+        step = 1
+    return step if step in CHECKOUT_STEPS else 1
+
+
+def _get_checkout_draft(request):
+    return dict(request.session.get(CHECKOUT_DRAFT_SESSION_KEY, {}))
+
+
+def _save_checkout_draft(request, draft):
+    request.session[CHECKOUT_DRAFT_SESSION_KEY] = draft
+    request.session.modified = True
+
+
+def _clear_checkout_draft(request):
+    if CHECKOUT_DRAFT_SESSION_KEY in request.session:
+        del request.session[CHECKOUT_DRAFT_SESSION_KEY]
+        request.session.modified = True
 
 
 def _get_shop_config():
@@ -52,6 +93,116 @@ def _get_shop_config():
 def _get_wishlist_items(request):
     wishlist = request.session.get(WISHLIST_SESSION_KEY, [])
     return Book.objects.filter(pk__in=[int(pk) for pk in wishlist]) if wishlist else []
+
+
+def _get_zasilkovna_api_key():
+    return getattr(settings, 'ZASILKOVNA_API_KEY', '') or os.environ.get('ZASILKOVNA_API_KEY', '')
+
+
+def _fetch_zasilkovna_branches(api_key):
+    now = int(time.time())
+    if _zasilkovna_branch_cache['items'] and now - _zasilkovna_branch_cache['fetched_at'] < ZASILKOVNA_CACHE_TTL_SECONDS:
+        return _zasilkovna_branch_cache['items']
+
+    url = f'https://www.zasilkovna.cz/api/v4/{api_key}/branch.json'
+    response = requests.get(url, timeout=15)
+    response.raise_for_status()
+    payload = response.json()
+
+    if isinstance(payload, list):
+        items = payload
+    elif isinstance(payload, dict):
+        items = payload.get('data') or payload.get('branches') or payload.get('result') or []
+    else:
+        items = []
+
+    normalized = []
+    for branch_item in items:
+        if isinstance(items, dict) and isinstance(branch_item, str):
+            branch = items[branch_item]
+        else:
+            branch = branch_item
+        
+        if not isinstance(branch, dict):
+            continue
+        if branch.get('isInactive'):
+            continue
+
+        code = branch.get('id') or branch.get('branchId') or branch.get('code')
+        if code is None:
+            continue
+
+        name = branch.get('name') or branch.get('place') or ''
+        city = branch.get('city') or ''
+        street = branch.get('street') or ''
+        postal_code = branch.get('zip') or ''
+        country = (branch.get('country') or '').lower()
+        if country and country not in {'cz', 'czech republic', 'ceska republika'}:
+            continue
+
+        latitude = branch.get('latitude') or branch.get('gps', {}).get('lat')
+        longitude = branch.get('longitude') or branch.get('gps', {}).get('lng')
+
+        normalized.append({
+            'code': str(code),
+            'name': name,
+            'city': city,
+            'street': street,
+            'postal_code': postal_code,
+            'latitude': float(latitude) if latitude else None,
+            'longitude': float(longitude) if longitude else None,
+        })
+
+    _zasilkovna_branch_cache['fetched_at'] = now
+    _zasilkovna_branch_cache['items'] = normalized
+    return normalized
+
+
+def zasilkovna_pickup_points(request):
+    query = (request.GET.get('q') or '').strip().lower()
+    if len(query) < 2:
+        return JsonResponse({'results': []})
+
+    api_key = _get_zasilkovna_api_key()
+    if not api_key:
+        return JsonResponse({'results': [], 'message': 'Zasilkovna API key není nastaven.'})
+
+    try:
+        branches = _fetch_zasilkovna_branches(api_key)
+    except Exception:
+        return JsonResponse({'results': [], 'message': 'Vyhledání výdejních míst je dočasně nedostupné.'})
+
+    results = []
+    for branch in branches:
+        searchable = ' '.join(
+            [branch['name'], branch['city'], branch['street'], branch['postal_code'], branch['code']]
+        ).lower()
+        if query not in searchable:
+            continue
+        label = branch['name']
+        if branch['city']:
+            label = f"{label}, {branch['city']}"
+        address = ', '.join(part for part in [branch['street'], branch['postal_code']] if part)
+        results.append({
+            'code': branch['code'],
+            'name': branch['name'],
+            'city': branch['city'],
+            'address': address,
+            'label': label,
+            'latitude': branch.get('latitude'),
+            'longitude': branch.get('longitude'),
+        })
+        if len(results) >= 25:
+            break
+
+    return JsonResponse({'results': results})
+
+
+def _append_query_param(url, key, value):
+    parts = urlsplit(url)
+    params = dict(parse_qsl(parts.query, keep_blank_values=True))
+    params[key] = value
+    return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(params), parts.fragment))
 
 
 def _update_wishlist(request, pk, add=True):
@@ -285,42 +436,140 @@ def cart_add(request, pk):
     request.session['cart'] = cart
     _track_abandoned_cart(request)
     messages.success(request, f'Přidáno do košíku: {book.title}')
+
+    next_url = request.POST.get('next') or request.GET.get('next')
+    prompt_after_add = (
+        request.POST.get('prompt_after_add') == '1'
+        or request.GET.get('prompt_after_add') == '1'
+    )
+
+    if next_url and url_has_allowed_host_and_scheme(
+        url=next_url,
+        allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        redirect_target = next_url
+        if prompt_after_add:
+            redirect_target = _append_query_param(redirect_target, 'added_to_cart', '1')
+        return redirect(redirect_target)
+
+    if prompt_after_add:
+        return redirect(_append_query_param(redirect('index').url, 'added_to_cart', '1'))
+
     return redirect('cart_view')
 
 
 def cart_view(request):
+    config = _get_shop_config()
     items, total = _get_cart_items(request)
+    free_shipping_threshold = config.free_shipping_threshold
     free_shipping_remaining = 0
-    if total > 0 and total < FREE_SHIPPING_THRESHOLD:
-        free_shipping_remaining = FREE_SHIPPING_THRESHOLD - total
+    if total > 0 and total < free_shipping_threshold:
+        free_shipping_remaining = free_shipping_threshold - total
     return render(request, 'books/cart.html', {
         'items': items,
         'total': total,
-        'free_shipping_threshold': FREE_SHIPPING_THRESHOLD,
+        'free_shipping_threshold': free_shipping_threshold,
         'free_shipping_remaining': free_shipping_remaining,
     })
 
 
-def checkout(request):
+def checkout(request, step=None):
     items, total = _get_cart_items(request)
     if not items:
         messages.warning(request, 'Košík je prázdný. Přidejte prosím nejprve položky.')
         return redirect('index')
 
+    draft = _get_checkout_draft(request)
+    current_step = _get_checkout_step(step if step is not None else request.GET.get('step'))
+
+    if current_step > 1 and 'address' not in draft:
+        return redirect('checkout')
+    if current_step > 2 and 'shipping' not in draft:
+        return redirect('checkout_step', step=2)
+    if current_step > 3 and 'payment' not in draft:
+        return redirect('checkout_step', step=3)
+
+    address_initial = draft.get('address', {})
+    if request.user.is_authenticated and not address_initial:
+        address_initial = {
+            'name': request.user.get_full_name() or request.user.username,
+            'email': request.user.email,
+            'country': 'Česká republika',
+        }
+
+    forms_by_step = {
+        1: CheckoutAddressForm,
+        2: CheckoutShippingForm,
+        3: CheckoutPaymentForm,
+        4: CheckoutConfirmForm,
+    }
+
+    initial_by_step = {
+        1: address_initial,
+        2: draft.get('shipping', {}),
+        3: draft.get('payment', {}),
+        4: {'register_account': False},
+    }
+
+    form = forms_by_step[current_step](initial=initial_by_step[current_step])
+
     if request.method == 'POST':
-        form = CheckoutForm(request.POST)
+        submitted_step = _get_checkout_step(request.POST.get('step', current_step))
+        if submitted_step != current_step:
+            return redirect('checkout_step', step=submitted_step)
+
+        form = forms_by_step[current_step](request.POST)
         if form.is_valid():
-            verification = verify_address(
-                street=form.cleaned_data['street'],
-                city=form.cleaned_data['city'],
-                postal_code=form.cleaned_data['postal_code'],
-                country=form.cleaned_data['country'],
-            )
-            if not verification['valid']:
-                form.add_error(None, verification.get('message', 'Adresa není validní.'))
-            else:
-                if verification.get('warning'):
-                    messages.warning(request, verification['warning'])
+            if current_step == 1:
+                verification = verify_address(
+                    street=form.cleaned_data['street'],
+                    city=form.cleaned_data['city'],
+                    postal_code=form.cleaned_data['postal_code'],
+                    country=form.cleaned_data['country'],
+                )
+                if not verification['valid']:
+                    form.add_error(None, verification.get('message', 'Adresa není validní.'))
+                else:
+                    if verification.get('warning'):
+                        messages.warning(request, verification['warning'])
+
+                    draft['address'] = {
+                        'name': form.cleaned_data['name'],
+                        'email': form.cleaned_data['email'],
+                        'phone': form.cleaned_data.get('phone', ''),
+                        'street': form.cleaned_data['street'],
+                        'city': form.cleaned_data['city'],
+                        'postal_code': form.cleaned_data['postal_code'],
+                        'country': form.cleaned_data['country'],
+                        'is_company_order': form.cleaned_data.get('is_company_order', False),
+                        'company_name': form.cleaned_data.get('company_name', ''),
+                        'company_id': form.cleaned_data.get('company_id', ''),
+                        'vat_id': form.cleaned_data.get('vat_id', ''),
+                    }
+                    _save_checkout_draft(request, draft)
+                    return redirect('checkout_step', step=2)
+
+            elif current_step == 2:
+                draft['shipping'] = {
+                    'shipping_method': form.cleaned_data['shipping_method'],
+                    'pickup_point_name': form.cleaned_data.get('pickup_point_name', ''),
+                    'pickup_point_code': form.cleaned_data.get('pickup_point_code', ''),
+                }
+                _save_checkout_draft(request, draft)
+                return redirect('checkout_step', step=3)
+
+            elif current_step == 3:
+                draft['payment'] = {
+                    'payment_method': form.cleaned_data['payment_method'],
+                }
+                _save_checkout_draft(request, draft)
+                return redirect('checkout_step', step=4)
+
+            elif current_step == 4:
+                if 'address' not in draft or 'shipping' not in draft or 'payment' not in draft:
+                    messages.warning(request, 'Objednávka není kompletní. Dokončete prosím předchozí kroky.')
+                    return redirect('checkout')
 
                 for item in items:
                     book = item['book']
@@ -328,16 +577,84 @@ def checkout(request):
                         messages.error(request, f'Kniha {book.title} není momentálně dostupná v požadovaném množství.')
                         return redirect('cart_view')
 
-                payment_method = form.cleaned_data['payment_method']
+                address_data = draft['address']
+                shipping_data = draft['shipping']
+                payment_data = draft['payment']
+
+                user_for_order = request.user if request.user.is_authenticated else None
+
+                if form.cleaned_data.get('register_account') and not request.user.is_authenticated:
+                    UserModel = get_user_model()
+                    account_email = address_data['email'].strip().lower()
+                    if UserModel.objects.filter(email__iexact=account_email).exists():
+                        form.add_error(None, 'Účet s tímto e-mailem již existuje. Přihlaste se prosím.')
+                        return render(request, 'books/checkout.html', {
+                            'items': items,
+                            'total': total,
+                            'form': form,
+                            'current_step': current_step,
+                            'steps': CHECKOUT_STEPS,
+                            'draft': draft,
+                        })
+
+                    base_username = account_email.split('@')[0] or 'uzivatel'
+                    username = base_username
+                    suffix = 1
+                    while UserModel.objects.filter(username=username).exists():
+                        suffix += 1
+                        username = f"{base_username}{suffix}"
+
+                    user_for_order = UserModel.objects.create_user(
+                        username=username,
+                        email=account_email,
+                        password=form.cleaned_data['account_password1'],
+                    )
+                    login(request, user_for_order)
+
+                payment_method = payment_data['payment_method']
+                shipping_method = shipping_data['shipping_method']
+
                 payment_code = 'QR' if payment_method == Order.PAYMENT_METHOD_QR else None
+                if payment_method == Order.PAYMENT_METHOD_GOPAY:
+                    payment_code = 'GOPAY'
+                elif payment_method == Order.PAYMENT_METHOD_COMGATE:
+                    payment_code = 'COMGATE'
+                elif payment_method == Order.PAYMENT_METHOD_STRIPE:
+                    payment_code = 'STRIPE'
+                elif payment_method == Order.PAYMENT_METHOD_COD:
+                    payment_code = 'COD'
+
+                order_address = (
+                    f"{address_data['street']}\n"
+                    f"{address_data['postal_code']} {address_data['city']}\n"
+                    f"{address_data['country']}"
+                )
+
                 order = Order.objects.create(
-                    user=request.user if request.user.is_authenticated else None,
-                    customer_name=form.cleaned_data['name'],
-                    email=form.cleaned_data['email'],
-                    address=form.get_address(),
+                    user=user_for_order,
+                    customer_name=address_data['name'],
+                    email=address_data['email'],
+                    address=order_address,
                     total_price=total,
+                    is_company_order=address_data.get('is_company_order', False),
+                    company_name=address_data.get('company_name', ''),
+                    company_id=address_data.get('company_id', ''),
+                    vat_id=address_data.get('vat_id', ''),
                     payment_method=payment_method,
+                    payment_status=Order.PAYMENT_STATUS_PENDING,
                     payment_code=payment_code,
+                    shipping_method=shipping_method,
+                    shipping_status=Order.SHIPPING_STATUS_PENDING,
+                    pickup_point_name=shipping_data.get('pickup_point_name') or '',
+                    pickup_point_code=shipping_data.get('pickup_point_code') or '',
+                    payment_details=(
+                        f"Zvolená platební metoda: {dict(Order.PAYMENT_METHOD_CHOICES).get(payment_method, payment_method)}"
+                    ),
+                    shipping_details=(
+                        f"Zvolená doprava: {dict(Order.SHIPPING_METHOD_CHOICES).get(shipping_method, shipping_method)}"
+                    ),
+                    terms_accepted=True,
+                    terms_accepted_at=timezone.now(),
                 )
 
                 for item in items:
@@ -354,26 +671,37 @@ def checkout(request):
                     book.save()
 
                 request.session['cart'] = {}
-                # Mark abandoned cart as converted
+                _clear_checkout_draft(request)
+
                 session_key = request.session.session_key
                 if session_key:
                     AbandonedCart.objects.filter(session_key=session_key).update(converted=True)
+
                 messages.success(request, 'Objednávka byla přijata. Děkujeme za nákup!')
                 return redirect('checkout_success', order_id=order.pk)
-    else:
-        initial = {}
-        if request.user.is_authenticated:
-            initial = {
-                'name': request.user.get_full_name() or request.user.username,
-                'email': request.user.email,
-                'country': 'Česká republika',
-            }
-        form = CheckoutForm(initial=initial)
+
+    shipping_label = ''
+    payment_label = ''
+    if draft.get('shipping', {}).get('shipping_method'):
+        shipping_label = dict(Order.SHIPPING_METHOD_CHOICES).get(
+            draft['shipping']['shipping_method'],
+            draft['shipping']['shipping_method'],
+        )
+    if draft.get('payment', {}).get('payment_method'):
+        payment_label = dict(Order.PAYMENT_METHOD_CHOICES).get(
+            draft['payment']['payment_method'],
+            draft['payment']['payment_method'],
+        )
 
     return render(request, 'books/checkout.html', {
         'items': items,
         'total': total,
         'form': form,
+        'current_step': current_step,
+        'steps': CHECKOUT_STEPS,
+        'draft': draft,
+        'shipping_label': shipping_label,
+        'payment_label': payment_label,
     })
 
 
@@ -401,6 +729,7 @@ def restore_cart(request, token):
 def contact(request):
     config = _get_shop_config()
     destination_email = config.service_email or getattr(settings, 'DEFAULT_FROM_EMAIL', None)
+    sender_email = config.sender_email or getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@freshbooks.local')
     if request.method == 'POST':
         form = ContactForm(request.POST)
         if form.is_valid():
@@ -408,7 +737,7 @@ def contact(request):
                 send_mail(
                     f"Kontakt: {dict(form.fields['topic'].choices).get(form.cleaned_data['topic'], 'Dotaz')}",
                     f"Jméno: {form.cleaned_data['name']}\nE-mail: {form.cleaned_data['email']}\n\n{form.cleaned_data['message']}",
-                    getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@freshbooks.local'),
+                    sender_email,
                     [destination_email],
                     fail_silently=False,
                 )
@@ -519,6 +848,9 @@ def _send_zero_price_report(email):
     if not books.exists() or not email:
         return 0
 
+    config = ShopConfig.get_solo()
+    sender_email = config.sender_email or getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@freshbooks.local')
+
     lines = [
         f"{book.pk}: {book.title} — {book.author} | cena={book.price} | kategorie={book.category}"
         for book in books
@@ -527,7 +859,7 @@ def _send_zero_price_report(email):
     send_mail(
         'Denní report: nulová cena u produktů',
         body,
-        getattr(settings, 'DEFAULT_FROM_EMAIL', 'noreply@freshbooks.local'),
+        sender_email,
         [email],
         fail_silently=False,
     )

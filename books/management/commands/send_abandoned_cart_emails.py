@@ -19,7 +19,7 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils import timezone
 
-from books.models import AbandonedCart, Book
+from books.models import AbandonedCart, Book, ShopConfig
 
 
 class Command(BaseCommand):
@@ -42,6 +42,7 @@ class Command(BaseCommand):
         hours = options["hours"]
         dry_run = options["dry_run"]
         cutoff = timezone.now() - timedelta(hours=hours)
+        sender_email = ShopConfig.get_from_email()
 
         carts = AbandonedCart.objects.filter(
             converted=False,
@@ -89,7 +90,7 @@ class Command(BaseCommand):
                     send_mail(
                         subject=subject,
                         message=text_body,
-                        from_email=settings.DEFAULT_FROM_EMAIL,
+                        from_email=sender_email,
                         recipient_list=[cart.email],
                         html_message=html_body,
                         fail_silently=False,

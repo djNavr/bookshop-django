@@ -67,6 +67,7 @@ USE_TZ = True
 
 STATIC_URL = '/static/'
 STATICFILES_DIRS = [BASE_DIR / 'static']
+STATIC_ROOT = BASE_DIR / 'staticfiles'
 
 ADDRESS_VERIFICATION_ENABLED = True
 ADDRESS_VERIFICATION_API_URL = 'mock'
@@ -74,6 +75,7 @@ ADDRESS_VERIFICATION_API_KEY = ''
 
 DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'info@naboknihy.cz')
 SERVICE_EMAIL = os.environ.get('SERVICE_EMAIL', 'info@naboknihy.cz')
+ZASILKOVNA_API_KEY = os.environ.get('ZASILKOVNA_API_KEY', '')
 
 # Email backend — use SMTP relay (Postfix on server) or console in dev
 if os.environ.get('EMAIL_HOST'):

@@ -14,6 +14,7 @@
 
 html {
   scroll-behavior: smooth;
+  scroll-padding-top: 96px;
 }
 
 body {
@@ -32,6 +33,17 @@ body, button, input, select, textarea {
   background: rgba(255, 255, 255, 0.92);
   border-bottom: 1px solid rgba(29, 39, 51, 0.08);
   backdrop-filter: blur(12px);
+}
+
+.site-nav {
+  top: 0;
+  z-index: 1030;
+}
+
+#catalog,
+#featured,
+#contact {
+  scroll-margin-top: 96px;
 }
 
 .navbar-brand {

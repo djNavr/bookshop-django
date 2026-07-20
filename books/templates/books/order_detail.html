@@ -31,6 +31,17 @@
             <div class="fw-semibold">{{ order.total_price|floatformat:2 }} CZK</div>
           </div>
           <div class="text-muted small">Počet položek: {{ order.items.count }}</div>
+          <hr>
+          <div class="small mb-2"><span class="text-muted">Platba:</span> {{ order.get_payment_method_display }}</div>
+          <div class="small mb-2"><span class="text-muted">Stav platby:</span> {{ order.get_payment_status_display }}</div>
+          <div class="small mb-2"><span class="text-muted">Doprava:</span> {{ order.get_shipping_method_display }}</div>
+          <div class="small"><span class="text-muted">Stav dopravy:</span> {{ order.get_shipping_status_display }}</div>
+          {% if order.pickup_point_name %}
+          <div class="small mt-2"><span class="text-muted">Výdejní místo:</span> {{ order.pickup_point_name }}</div>
+          {% endif %}
+          {% if order.shipping_tracking_code %}
+          <div class="small mt-2"><span class="text-muted">Tracking:</span> {{ order.shipping_tracking_code }}</div>
+          {% endif %}
         </div>
       </div>
     </div>

@@ -1,15 +1,42 @@
 {% extends 'base.html' %}
 {% block content %}
 <div class="py-5">
+  <div class="mb-4">
+    <h1 class="h3 mb-3">Dokončení objednávky</h1>
+    <div class="d-flex flex-wrap gap-2">
+      <span class="badge {% if current_step == 1 %}bg-primary{% else %}bg-secondary{% endif %}">1. Kontakt a adresa</span>
+      <span class="badge {% if current_step == 2 %}bg-primary{% else %}bg-secondary{% endif %}">2. Doprava</span>
+      <span class="badge {% if current_step == 3 %}bg-primary{% else %}bg-secondary{% endif %}">3. Platba</span>
+      <span class="badge {% if current_step == 4 %}bg-primary{% else %}bg-secondary{% endif %}">4. Rekapitulace</span>
+    </div>
+  </div>
   <div class="row g-4">
     <div class="col-lg-7">
       <div class="card shadow-sm rounded-4 p-4">
-        <h1 class="h3 mb-4">Pokračovat k objednávce</h1>
+        {% if current_step == 1 %}
+        <h2 class="h4 mb-4">Kontaktní údaje a adresa</h2>
+        {% elif current_step == 2 %}
+        <h2 class="h4 mb-4">Způsob dopravy</h2>
+        {% elif current_step == 3 %}
+        <h2 class="h4 mb-4">Způsob platby</h2>
+        {% else %}
+        <h2 class="h4 mb-4">Rekapitulace a potvrzení</h2>
+        {% endif %}
+
         <form method="post" novalidate>
           {% csrf_token %}
+          <input type="hidden" name="step" value="{{ current_step }}" />
+
           {% if not user.is_authenticated %}
           <div class="alert alert-info">Máte účet? <a href="{% url 'login' %}">Přihlaste se</a> pro sledování stavu objednávek.</div>
           {% endif %}
+
+          {% if form.non_field_errors %}
+          <div class="alert alert-danger">
+            {{ form.non_field_errors }}
+          </div>
+          {% endif %}
+
           {% for field in form %}
           <div class="mb-3">
             <label class="form-label" for="id_{{ field.name }}">{{ field.label }}</label>
@@ -19,7 +46,40 @@
             {% endif %}
           </div>
           {% endfor %}
-          <button type="submit" class="btn btn-primary btn-lg">Odeslat objednávku</button>
+
+          <div class="mb-3 d-none" id="zasilkovna-search-wrap">
+            <label class="form-label">Vyhledat výdejní místo Zásilkovny</label>
+            
+            <div class="mb-2">
+              <input type="text" id="zasilkovna-search-input" class="form-control" placeholder="Zadejte město, ulici nebo název pobočky" autocomplete="off" />
+            </div>
+
+            <div class="row g-3">
+              <div class="col-md-6">
+                <div id="zasilkovna-map" style="height: 400px; border: 1px solid #ddd; border-radius: 0.375rem;"></div>
+              </div>
+              <div class="col-md-6">
+                <div id="zasilkovna-list" style="height: 400px; overflow-y: auto; border: 1px solid #ddd; border-radius: 0.375rem;">
+                  <div class="p-3 text-muted text-center">Hledejte místo v mapě nebo seznamu</div>
+                </div>
+              </div>
+            </div>
+            
+            <div id="zasilkovna-warning" class="alert alert-warning mt-2 d-none">
+              ⚠️ Vyberte prosím výdejní místo Zásilkovny, abyste mohli pokračovat.
+            </div>
+          </div>
+
+          {% if current_step > 1 %}
+          <a href="{% url 'checkout_step' current_step|add:'-1' %}" class="btn btn-outline-secondary">Zpět</a>
+          {% endif %}
+
+          {% if current_step < 4 %}
+          <button type="submit" class="btn btn-primary" id="checkout-continue-btn">Pokračovat</button>
+          {% else %}
+          <button type="submit" class="btn btn-primary btn-lg">Potvrdit objednávku</button>
+          {% endif %}
+
           <a href="{% url 'cart_view' %}" class="btn btn-outline-secondary ms-2">Zpět do košíku</a>
         </form>
       </div>
@@ -47,8 +107,235 @@
           <div class="text-muted">Celkem</div>
           <div class="h4 fw-bold">{{ total|floatformat:2 }} CZK</div>
         </div>
+
+        {% if current_step == 4 %}
+        <div class="mt-4 border-top pt-3">
+          <h3 class="h6">Kontaktní údaje</h3>
+          <p class="mb-1">{{ draft.address.name|default:'-' }}</p>
+          <p class="mb-1 text-muted small">{{ draft.address.email|default:'-' }}</p>
+          <p class="mb-0 text-muted small">{{ draft.address.street|default:'-' }}, {{ draft.address.postal_code|default:'-' }} {{ draft.address.city|default:'-' }}</p>
+
+          {% if draft.address.is_company_order %}
+          <div class="mt-3">
+            <h3 class="h6">Fakturace na firmu</h3>
+            <p class="mb-1">{{ draft.address.company_name|default:'-' }}</p>
+            <p class="mb-0 text-muted small">IČO: {{ draft.address.company_id|default:'-' }}{% if draft.address.vat_id %}, DIČ: {{ draft.address.vat_id }}{% endif %}</p>
+          </div>
+          {% endif %}
+
+          <div class="mt-3">
+            <h3 class="h6">Doprava a platba</h3>
+            <p class="mb-1 text-muted small">Doprava: {{ shipping_label|default:'-' }}</p>
+            <p class="mb-0 text-muted small">Platba: {{ payment_label|default:'-' }}</p>
+          </div>
+        </div>
+        {% endif %}
       </div>
     </div>
   </div>
 </div>
+
+<script>
+(function() {
+  const shippingMethod = document.getElementById('id_shipping_method');
+  const pickupName = document.getElementById('id_pickup_point_name');
+  const pickupCode = document.getElementById('id_pickup_point_code');
+  const searchWrap = document.getElementById('zasilkovna-search-wrap');
+  const searchInput = document.getElementById('zasilkovna-search-input');
+  const mapContainer = document.getElementById('zasilkovna-map');
+  const listContainer = document.getElementById('zasilkovna-list');
+  const continueBtn = document.getElementById('checkout-continue-btn');
+  const zasilkovnaWarning = document.getElementById('zasilkovna-warning');
+
+  if (!shippingMethod || !pickupName || !pickupCode || !searchWrap || !mapContainer || !listContainer) {
+    return;
+  }
+
+  let map = null;
+  let markers = {};
+  let currentResults = [];
+
+  const validatePickupRequired = () => {
+    if (!continueBtn) return;
+    
+    const isZasilkovnaOrBalikovna = shippingMethod.value in {zasilkovna: true, balikovna: true};
+    const hasPickupCode = pickupCode.value.trim().length > 0;
+    
+    if (isZasilkovnaOrBalikovna && !hasPickupCode) {
+      continueBtn.disabled = true;
+      if (zasilkovnaWarning) {
+        zasilkovnaWarning.classList.remove('d-none');
+      }
+    } else {
+      continueBtn.disabled = false;
+      if (zasilkovnaWarning) {
+        zasilkovnaWarning.classList.add('d-none');
+      }
+    }
+  };
+
+  const initMap = () => {
+    if (map) return;
+    
+    setTimeout(() => {
+      if (typeof L === 'undefined') return;
+      
+      map = L.map(mapContainer).setView([49.8175, 15.4730], 7);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors',
+        maxZoom: 19,
+      }).addTo(map);
+      
+      map.invalidateSize();
+    }, 100);
+  };
+
+  const selectPickup = (code, name, lat, lng) => {
+    pickupCode.value = code;
+    pickupName.value = name;
+    searchInput.value = '';
+    
+    currentResults.forEach((result) => {
+      const listItem = document.querySelector(`[data-code="${result.code}"]`);
+      if (listItem) {
+        listItem.classList.remove('active');
+      }
+      if (markers[result.code]) {
+        markers[result.code].setIcon(L.icon({
+          iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png',
+          iconSize: [25, 41],
+          iconAnchor: [12, 41],
+        }));
+      }
+    });
+
+    const activeListItem = document.querySelector(`[data-code="${code}"]`);
+    if (activeListItem) {
+      activeListItem.classList.add('active');
+      activeListItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    if (markers[code]) {
+      markers[code].setIcon(L.icon({
+        iconUrl: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjUiIGhlaWdodD0iNDEiIHZpZXdCb3g9IjAgMCAyNSA0MSIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMjUiIGhlaWdodD0iNDEiIHJ4PSIyIiBmaWxsPSIjMDA3QkZGIi8+PHRleHQgeD0iNTAlIiB5PSI1MCUiIGZvbnQtc2l6ZT0iMjAiIGZvbnQtd2VpZ2h0PSJib2xkIiBmaWxsPSJ3aGl0ZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZHk9Ii4zcW0iPiDinZDinZA8L3RleHQ+PC9zdmc+',
+        iconSize: [25, 41],
+        iconAnchor: [12, 41],
+      }));
+      map.setView([lat, lng], 13);
+    }
+
+    validatePickupRequired();
+  };
+
+  const renderList = (results) => {
+    if (!results.length) {
+      listContainer.innerHTML = '<div class="p-3 text-muted text-center">Žádné výdejní místo nenalezeno</div>';
+      return;
+    }
+
+    currentResults = results;
+    clearMarkers();
+
+    listContainer.innerHTML = results.map((item) => `
+      <button type="button" class="list-group-item list-group-item-action text-start" data-code="${item.code}" style="border: none; border-bottom: 1px solid #ddd;">
+        <div class="fw-semibold small">${item.label}</div>
+        <div class="text-muted small">${item.address || 'Bez adresy'}</div>
+      </button>
+    `).join('');
+
+    listContainer.querySelectorAll('[data-code]').forEach((el) => {
+      el.addEventListener('click', (e) => {
+        e.preventDefault();
+        const code = el.dataset.code;
+        const result = results.find((r) => r.code === code);
+        if (result) {
+          selectPickup(code, result.label, result.latitude, result.longitude);
+        }
+      });
+    });
+
+    if (map) {
+      results.forEach((item) => {
+        if (item.latitude && item.longitude) {
+          const marker = L.marker([item.latitude, item.longitude]).addTo(map);
+          marker.bindPopup(`<strong>${item.label}</strong><br>${item.address}`);
+          markers[item.code] = marker;
+          
+          marker.on('click', () => {
+            selectPickup(item.code, item.label, item.latitude, item.longitude);
+          });
+        }
+      });
+
+      if (results.length > 0 && results[0].latitude && results[0].longitude) {
+        const group = new L.featureGroup(Object.values(markers));
+        map.fitBounds(group.getBounds().pad(0.1));
+      }
+    }
+  };
+
+  const clearMarkers = () => {
+    Object.values(markers).forEach((marker) => {
+      map.removeLayer(marker);
+    });
+    markers = {};
+  };
+
+  const toggleSearchVisibility = () => {
+    const isZasilkovna = shippingMethod.value === 'zasilkovna';
+    searchWrap.classList.toggle('d-none', !isZasilkovna);
+    if (!isZasilkovna) {
+      listContainer.innerHTML = '';
+      clearMarkers();
+      if (zasilkovnaWarning) {
+        zasilkovnaWarning.classList.add('d-none');
+      }
+    } else {
+      initMap();
+    }
+    validatePickupRequired();
+  };
+
+  let timerId = null;
+  searchInput.addEventListener('input', () => {
+    const query = searchInput.value.trim();
+    clearTimeout(timerId);
+
+    if (query.length < 2) {
+      listContainer.innerHTML = '<div class="p-3 text-muted text-center">Zadejte alespoň 2 znaky</div>';
+      clearMarkers();
+      return;
+    }
+
+    listContainer.innerHTML = '<div class="p-3 text-muted text-center">Hledám...</div>';
+
+    timerId = setTimeout(async () => {
+      try {
+        const response = await fetch(`/shipping/zasilkovna/points/?q=${encodeURIComponent(query)}`);
+        const data = await response.json();
+        if (!response.ok) {
+          listContainer.innerHTML = '<div class="p-3 text-muted text-center">Vyhledání je dočasně nedostupné</div>';
+          return;
+        }
+
+        if (!data.results || !data.results.length) {
+          listContainer.innerHTML = '<div class="p-3 text-muted text-center">Žádné výdejní místo nenalezeno</div>';
+          clearMarkers();
+          return;
+        }
+
+        renderList(data.results);
+      } catch (_err) {
+        listContainer.innerHTML = '<div class="p-3 text-muted text-center">Chyba při vyhledávání</div>';
+      }
+    }, 300);
+  });
+
+  shippingMethod.addEventListener('change', toggleSearchVisibility);
+  pickupCode.addEventListener('input', validatePickupRequired);
+  
+  toggleSearchVisibility();
+  validatePickupRequired();
+})();
+</script>
 {% endblock %}

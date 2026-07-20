@@ -5,10 +5,11 @@
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Book Shop</title>
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <link rel="stylesheet" href="/static/css/style.css">
   </head>
   <body>
-    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4">
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm mb-4 site-nav sticky-top" id="siteNav">
       <div class="container">
         <a class="navbar-brand fw-bold" href="/">FreshBooks</a>
         <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
@@ -16,9 +17,9 @@
         </button>
         <div class="collapse navbar-collapse" id="mainNav">
           <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-            <li class="nav-item"><a class="nav-link active" aria-current="page" href="/">Domů</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'index' %}#catalog">Katalog</a></li>
-            <li class="nav-item"><a class="nav-link" href="{% url 'index' %}#featured">Doporučeno</a></li>
+            <li class="nav-item"><a class="nav-link" data-nav-home="true" href="/">Domů</a></li>
+            <li class="nav-item"><a class="nav-link" data-nav-section="catalog" href="{% url 'index' %}#catalog">Katalog</a></li>
+            <li class="nav-item"><a class="nav-link" data-nav-section="featured" href="{% url 'index' %}#featured">Doporučeno</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'categories' %}">Kategorie</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'wishlist' %}">Wishlist{% if wishlist_count %} <span class="badge bg-secondary ms-1">{{ wishlist_count }}</span>{% endif %}</a></li>
             <li class="nav-item"><a class="nav-link" href="{% url 'contact' %}">Kontakt</a></li>
@@ -61,5 +62,76 @@
       </div>
     </footer>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+      (function() {
+        const nav = document.getElementById('siteNav');
+        if (!nav) return;
+
+        const navLinks = Array.from(nav.querySelectorAll('.nav-link'));
+        const normalizePath = (value) => {
+          if (!value) return '/';
+          const normalized = value.replace(/\/+$/, '');
+          return normalized || '/';
+        };
+
+        const clearActive = () => {
+          navLinks.forEach((link) => {
+            link.classList.remove('active');
+            link.removeAttribute('aria-current');
+          });
+        };
+
+        const setActive = (link) => {
+          if (!link) return;
+          clearActive();
+          link.classList.add('active');
+          link.setAttribute('aria-current', 'page');
+        };
+
+        const currentPath = normalizePath(window.location.pathname);
+        const homeLink = nav.querySelector('[data-nav-home="true"]');
+        const sectionLinks = Array.from(nav.querySelectorAll('[data-nav-section]'));
+
+        const currentPageLink = navLinks.find((link) => {
+          const url = new URL(link.getAttribute('href'), window.location.origin);
+          return normalizePath(url.pathname) === currentPath && !url.hash;
+        });
+
+        if (currentPath !== '/') {
+          setActive(currentPageLink || homeLink);
+          return;
+        }
+
+        const sectionEntries = sectionLinks
+          .map((link) => ({
+            link,
+            section: document.getElementById(link.dataset.navSection),
+          }))
+          .filter((entry) => entry.section);
+
+        const updateHomePageActiveState = () => {
+          const navHeight = nav.offsetHeight;
+          const fromTop = window.scrollY + navHeight + 24;
+          let activeEntry = null;
+
+          for (const entry of sectionEntries) {
+            if (entry.section.offsetTop <= fromTop) {
+              activeEntry = entry;
+            }
+          }
+
+          if (activeEntry) {
+            setActive(activeEntry.link);
+          } else {
+            setActive(homeLink);
+          }
+        };
+
+        window.addEventListener('scroll', updateHomePageActiveState, { passive: true });
+        window.addEventListener('hashchange', updateHomePageActiveState);
+        updateHomePageActiveState();
+      })();
+    </script>
   </body>
 </html>
